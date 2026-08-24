@@ -11,6 +11,7 @@ interface WalletCtx {
   connecting: boolean;
   error: string | null;
   connect: () => Promise<void>;
+  disconnect: () => void;
   refreshView: () => Promise<void>;
 }
 
@@ -37,13 +38,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [active]);
 
+  const disconnect = useCallback(() => {
+    wallet?.destroy();
+    setWallet(null);
+    setView(null);
+    setError(null);
+  }, [wallet]);
+
   const refreshView = useCallback(async () => {
     if (!wallet) return;
     setView(await wallet.refresh());
   }, [wallet]);
 
   return (
-    <Ctx.Provider value={{ wallet, view, connecting, error, connect, refreshView }}>
+    <Ctx.Provider value={{ wallet, view, connecting, error, connect, disconnect, refreshView }}>
       {children}
     </Ctx.Provider>
   );
