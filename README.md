@@ -429,6 +429,16 @@ Verify any transaction at: `https://stellar.expert/explorer/testnet/tx/<hash>`
 
 ---
 
+## 💬 User Feedback
+
+We collect feedback from real users to improve PrivyPay.
+
+👉 **[Leave feedback here](https://forms.gle/your-form-id)**
+
+Feedback is also linked in the app navigation and landing page footer.
+
+---
+
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
