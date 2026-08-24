@@ -22,6 +22,7 @@ import {
   submitMerge,
   submitWithdraw,
   submitTransfer,
+  encodeTransferData,
   type IndexerClient,
   hybridFetchEvents,
   proveRecipientDisclosure,
@@ -44,6 +45,7 @@ import transferCircuit from "@ctd/sdk/circuits/transfer.json";
 import discloseRecipientCircuit from "@ctd/disclosure/artifacts/disclose_recipient.json";
 import discloseSenderCircuit from "@ctd/disclosure/artifacts/disclose_sender.json";
 
+import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import type { Deployment } from "./deployment";
 import { connectFreighter } from "./freighter";
 import { keyDerivationMessage, skFromSignature } from "./derive-key";
@@ -63,6 +65,14 @@ const CIRCUITS: Record<CircuitName, { bytecode: string } & Record<string, unknow
 };
 
 export type TxPhase = "proving" | "submitting";
+
+export interface InvoiceRecord {
+  id: bigint;
+  buyer: string;
+  supplier: string;
+  memo: string;
+  status: "Created" | "Paid" | "Cancelled";
+}
 
 export interface WalletView {
   address: string;
@@ -276,6 +286,87 @@ export class ConfidentialWallet {
     if (!recipient) throw new Error("transfer recipient has no confidential account record");
     this.log("proving disclosure (D-sender)…");
     return proveSenderDisclosure({ keys: this.keys, rEScalar, event, pvkB: recipient.viewingPublicKey, request, prover: this.prover("disclose_sender") });
+  }
+
+  async invoiceCreate(buyer: string, supplier: string, memo: string): Promise<bigint> {
+    const vaultId = this.deployment.contracts.invoiceVault;
+    const res = await this.client.invoke(
+      vaultId,
+      "create_invoice",
+      [
+        new Address(buyer).toScVal(),
+        new Address(supplier).toScVal(),
+        nativeToScVal(memo, { type: "string" }),
+      ],
+      this.signer,
+    );
+    const id = (res.returnValue as xdr.ScVal).u64();
+    this.log(`invoice #${id} created on-chain`);
+    return BigInt(id.toString());
+  }
+
+  async invoicePay(invoiceId: bigint, supplier: string, amount: bigint, onPhase?: (p: TxPhase) => void): Promise<void> {
+    const recipient = await this.client.confidentialBalance(supplier);
+    if (!recipient) throw new Error("supplier is not registered for confidential transfers");
+    const kAudR = await this.client.auditorKey(recipient.auditorId);
+    const kAudS = await this.client.auditorKey(this.deployment.auditorId);
+    const s = await this.engine.sync();
+    if (s.spendable.v < amount) throw new Error(`insufficient balance (${stroopsToXlm(s.spendable.v)} XLM)`);
+    const w = buildTransferWitness({ keys: this.keys, v: s.spendable.v, r: s.spendable.r, amount, pvkB: recipient.viewingPublicKey, kAudR, kAudS });
+    onPhase?.("proving");
+    this.log("proving transfer for invoice payment…");
+    const { proof } = await this.prover("transfer").prove(w.inputs);
+    const data = encodeTransferData(w, proof);
+    onPhase?.("submitting");
+    this.log(`submitting pay_invoice #${invoiceId}…`);
+    const vaultId = this.deployment.contracts.invoiceVault;
+    await this.client.invoke(
+      vaultId,
+      "pay_invoice",
+      [
+        new Address(this.deployment.contracts.token).toScVal(),
+        nativeToScVal(invoiceId, { type: "u64" }),
+        data,
+      ],
+      this.signer,
+    );
+    await this.engine.setSpendable(w.next);
+    this.log(`invoice #${invoiceId} paid confidentially`);
+  }
+
+  async invoiceGet(invoiceId: bigint): Promise<InvoiceRecord> {
+    const vaultId = this.deployment.contracts.invoiceVault;
+    const res = await this.client.invoke(
+      vaultId,
+      "get_invoice",
+      [nativeToScVal(invoiceId, { type: "u64" })],
+      this.signer,
+    );
+    const val = res.returnValue as xdr.ScVal;
+    const fields = Object.fromEntries(val.map().map((e: xdr.ScMapEntry) => [e.key().sym().toString(), e.val()]));
+    const statusSym = fields.status.vec()[0].sym().toString();
+    const status = statusSym === "Paid" ? "Paid" : statusSym === "Cancelled" ? "Cancelled" : "Created";
+    return {
+      id: invoiceId,
+      buyer: Address.fromScVal(fields.buyer).toString(),
+      supplier: Address.fromScVal(fields.supplier).toString(),
+      memo: fields.memo.str().toString(),
+      status,
+    };
+  }
+
+  async invoiceCancel(invoiceId: bigint): Promise<void> {
+    const vaultId = this.deployment.contracts.invoiceVault;
+    await this.client.invoke(
+      vaultId,
+      "cancel_invoice",
+      [
+        nativeToScVal(invoiceId, { type: "u64" }),
+        new Address(this.address).toScVal(),
+      ],
+      this.signer,
+    );
+    this.log(`invoice #${invoiceId} cancelled`);
   }
 
   async destroy(): Promise<void> {

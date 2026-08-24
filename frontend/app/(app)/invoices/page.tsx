@@ -9,10 +9,8 @@ import { PageShell } from "@/components/page-shell";
 import { ErrorBox } from "@/components/error-box";
 import { LogPanel } from "@/components/log-panel";
 import { Addr } from "@/components/addr";
-import { FileText, CheckCircle, Plus } from "lucide-react";
-import type { TxPhase } from "@/lib/wallet";
-
-interface InvoiceRecord { id: number; buyer: string; supplier: string; memo: string; status: "Created" | "Paid" | "Cancelled"; }
+import { FileText, CheckCircle, Plus, XCircle } from "lucide-react";
+import type { TxPhase, InvoiceRecord } from "@/lib/wallet";
 
 export default function InvoicesPage() {
   const { wallet, connecting, connect } = useWallet();
@@ -20,15 +18,18 @@ export default function InvoicesPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [phase, setPhase] = useState<TxPhase | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [buyer, setBuyer] = useState("");
   const [supplier, setSupplier] = useState("");
   const [memo, setMemo] = useState("");
-  const [createdId, setCreatedId] = useState<number | null>(null);
+  const [createdId, setCreatedId] = useState<bigint | null>(null);
+
   const [payId, setPayId] = useState("");
-  const [paySupplier, setPaySupplier] = useState("");
   const [payAmount, setPayAmount] = useState("");
-  const [lookedUp, setLookedUp] = useState<InvoiceRecord | null>(null);
+  const [payInvoiceData, setPayInvoiceData] = useState<InvoiceRecord | null>(null);
+
   const [lookupId, setLookupId] = useState("");
+  const [lookedUp, setLookedUp] = useState<InvoiceRecord | null>(null);
 
   const phaseLabel = (p: TxPhase | null) => p === "proving" ? "Proving ZK…" : p === "submitting" ? "Submitting…" : "Working…";
   const inputCls = "w-full rounded-xl border border-border/60 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-primary/60 placeholder:text-muted-foreground/50";
@@ -38,24 +39,57 @@ export default function InvoicesPage() {
     if (!wallet || !buyer.trim() || !supplier.trim() || !memo.trim()) { setError("Fill in buyer, supplier, and memo."); return; }
     setError(null); setBusy("create");
     try {
-      const id = Math.floor(Math.random() * 100000);
+      const id = await wallet.invoiceCreate(buyer.trim(), supplier.trim(), memo.trim());
       setCreatedId(id);
-      log(`invoice #${id} created: ${buyer.slice(0,8)}… → ${supplier.slice(0,8)}… | ${memo}`);
-    } catch (e) { setError(errMsg(e)); }
+      log(`✓ invoice #${id} created on-chain`);
+    } catch (e) { setError(errMsg(e)); log(`error: ${errMsg(e)}`); }
     finally { setBusy(null); }
   }, [wallet, buyer, supplier, memo, log]);
 
+  const fetchInvoiceForPay = useCallback(async () => {
+    if (!wallet || !payId.trim()) return;
+    setError(null); setBusy("fetch-pay");
+    try {
+      setPayInvoiceData(await wallet.invoiceGet(BigInt(payId.trim())));
+    } catch (e) { setError(errMsg(e)); }
+    finally { setBusy(null); }
+  }, [wallet, payId]);
+
   const payInvoice = useCallback(async () => {
-    if (!wallet || !paySupplier.trim() || !payAmount.trim()) { setError("Enter supplier address and amount."); return; }
+    if (!wallet || !payInvoiceData || !payAmount.trim()) { setError("Load the invoice first and enter an amount."); return; }
     setError(null); setBusy("pay"); setPhase(null);
     try {
-      log(`proving payment for invoice #${payId}…`);
-      setPhase("proving");
-      await wallet.transfer(paySupplier.trim(), xlmToStroops(payAmount), setPhase);
-      log(`✓ invoice #${payId} paid ${payAmount} XLM confidentially`);
+      await wallet.invoicePay(payInvoiceData.id, payInvoiceData.supplier, xlmToStroops(payAmount), setPhase);
+      log(`✓ invoice #${payInvoiceData.id} paid confidentially`);
+      setPayInvoiceData({ ...payInvoiceData, status: "Paid" });
     } catch (e) { setError(errMsg(e)); log(`error: ${errMsg(e)}`); }
     finally { setBusy(null); setPhase(null); }
-  }, [wallet, payId, paySupplier, payAmount, log]);
+  }, [wallet, payInvoiceData, payAmount, log]);
+
+  const lookupInvoice = useCallback(async () => {
+    if (!wallet || !lookupId.trim()) return;
+    setError(null); setBusy("lookup");
+    try {
+      setLookedUp(await wallet.invoiceGet(BigInt(lookupId.trim())));
+    } catch (e) { setError(errMsg(e)); setLookedUp(null); }
+    finally { setBusy(null); }
+  }, [wallet, lookupId]);
+
+  const cancelInvoice = useCallback(async (id: bigint) => {
+    if (!wallet) return;
+    setError(null); setBusy("cancel");
+    try {
+      await wallet.invoiceCancel(id);
+      log(`✓ invoice #${id} cancelled`);
+      if (lookedUp?.id === id) setLookedUp({ ...lookedUp, status: "Cancelled" });
+    } catch (e) { setError(errMsg(e)); log(`error: ${errMsg(e)}`); }
+    finally { setBusy(null); }
+  }, [wallet, lookedUp, log]);
+
+  const statusBadge = (s: string) =>
+    s === "Paid" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+    s === "Cancelled" ? "bg-red-500/10 text-red-400 border-red-500/20" :
+    "bg-primary/10 text-primary border-primary/20";
 
   return (
     <PageShell title="Invoices" subtitle="Create and pay B2B invoices with confidential amounts. Parties and status are public; the payment amount is shielded." badge="B2B">
@@ -69,59 +103,99 @@ export default function InvoicesPage() {
         </div>
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
+
           {/* Create */}
           <div className="rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm space-y-4">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2">
               <div className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary"><FileText className="size-4" /></div>
               <h2 className="font-medium">Create invoice</h2>
             </div>
+            <p className="text-xs text-muted-foreground">Registers the invoice on-chain. Anyone can create — only the named buyer can pay it.</p>
             <input className={inputCls} value={buyer} onChange={(e) => setBuyer(e.target.value)} placeholder="Buyer G-address" />
             <input className={inputCls} value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="Supplier G-address" />
-            <input className={inputCls} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Memo / PO reference" />
+            <input className={inputCls} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Memo / PO reference (public)" />
             <button onClick={createInvoice} disabled={busy !== null} className={`${btnCls} bg-primary text-primary-foreground hover:brightness-110 flex items-center gap-2`}>
-              <Plus className="size-4" />{busy === "create" ? "Creating…" : "Create invoice"}
+              <Plus className="size-4" />{busy === "create" ? "Submitting…" : "Create invoice"}
             </button>
             {createdId !== null && (
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-400">
-                Invoice #{createdId} created
+                Invoice #{createdId.toString()} created on-chain ✓
               </div>
             )}
           </div>
 
           {/* Pay */}
           <div className="rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm space-y-4">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2">
               <div className="grid size-7 place-items-center rounded-lg bg-emerald-500/10 text-emerald-400"><CheckCircle className="size-4" /></div>
               <h2 className="font-medium">Pay invoice</h2>
             </div>
-            <input className={inputCls} value={payId} onChange={(e) => setPayId(e.target.value)} placeholder="Invoice ID" />
-            <input className={inputCls} value={paySupplier} onChange={(e) => setPaySupplier(e.target.value)} placeholder="Supplier G-address" />
-            <div className="relative"><input className={`${inputCls} pr-12`} value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="Amount" /><span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-muted-foreground">XLM</span></div>
-            <button onClick={payInvoice} disabled={busy !== null} className={`${btnCls} bg-emerald-600 text-white hover:bg-emerald-500 flex items-center gap-2`}>
-              <CheckCircle className="size-4" />{busy === "pay" ? phaseLabel(phase) : "Pay confidentially"}
-            </button>
+            <p className="text-xs text-muted-foreground">Load the invoice to verify parties, then pay with a confidential transfer. Amount is never stored on-chain.</p>
+            <div className="flex gap-2">
+              <input className={inputCls} value={payId} onChange={(e) => { setPayId(e.target.value); setPayInvoiceData(null); }} placeholder="Invoice ID" />
+              <button onClick={fetchInvoiceForPay} disabled={busy !== null || !payId.trim()}
+                className="shrink-0 rounded-xl border border-border/60 px-4 text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all disabled:opacity-50">
+                {busy === "fetch-pay" ? "…" : "Load"}
+              </button>
+            </div>
+            {payInvoiceData && (
+              <div className="rounded-xl border border-border/50 bg-background/30 p-3 text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Invoice #{payInvoiceData.id.toString()}</span>
+                  <span className={`rounded-full border px-2 py-0.5 ${statusBadge(payInvoiceData.status)}`}>{payInvoiceData.status}</span>
+                </div>
+                <div><span className="text-muted-foreground">Buyer: </span><Addr value={payInvoiceData.buyer} /></div>
+                <div><span className="text-muted-foreground">Supplier: </span><Addr value={payInvoiceData.supplier} /></div>
+                <div><span className="text-muted-foreground">Memo: </span>{payInvoiceData.memo}</div>
+              </div>
+            )}
+            {payInvoiceData?.status === "Created" && (
+              <>
+                <div className="relative">
+                  <input className={`${inputCls} pr-12`} value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="Amount" />
+                  <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-muted-foreground">XLM</span>
+                </div>
+                <button onClick={payInvoice} disabled={busy !== null}
+                  className={`${btnCls} bg-emerald-600 text-white hover:bg-emerald-500 flex items-center gap-2`}>
+                  <CheckCircle className="size-4" />{busy === "pay" ? phaseLabel(phase) : "Pay confidentially"}
+                </button>
+              </>
+            )}
           </div>
 
-          {/* Lookup */}
+          {/* Lookup + cancel */}
           <div className="rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm lg:col-span-2 space-y-4">
             <h2 className="font-medium">Look up invoice</h2>
             <div className="flex gap-3">
-              <input className={`${inputCls} max-w-xs`} value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="Invoice ID" />
-              <button onClick={() => { if (lookupId) setLookedUp({ id: parseInt(lookupId), buyer: buyer || "—", supplier: supplier || "—", memo: memo || "—", status: "Created" }); }} className={`${btnCls} border border-border/60 text-muted-foreground hover:text-foreground hover:bg-white/5`}>Look up</button>
+              <input className={`${inputCls} max-w-xs`} value={lookupId} onChange={(e) => setLookupId(e.target.value)}
+                placeholder="Invoice ID" onKeyDown={(e) => e.key === "Enter" && lookupInvoice()} />
+              <button onClick={lookupInvoice} disabled={busy !== null || !lookupId.trim()}
+                className={`${btnCls} border border-border/60 text-muted-foreground hover:text-foreground hover:bg-white/5`}>
+                {busy === "lookup" ? "Loading…" : "Look up"}
+              </button>
             </div>
             {lookedUp && (
               <div className="rounded-xl border border-border/50 bg-background/30 p-4 text-sm space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">Invoice #{lookedUp.id}</span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs border ${lookedUp.status === "Paid" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : lookedUp.status === "Cancelled" ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-primary/10 text-primary border-primary/20"}`}>{lookedUp.status}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Invoice #{lookedUp.id.toString()}</span>
+                    <span className={`rounded-full border px-2.5 py-0.5 text-xs ${statusBadge(lookedUp.status)}`}>{lookedUp.status}</span>
+                  </div>
+                  {lookedUp.status === "Created" && (
+                    <button onClick={() => cancelInvoice(lookedUp.id)} disabled={busy !== null}
+                      className="flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50">
+                      <XCircle className="size-3.5" /> Cancel
+                    </button>
+                  )}
                 </div>
                 <div><span className="text-muted-foreground">Buyer: </span><Addr value={lookedUp.buyer} /></div>
                 <div><span className="text-muted-foreground">Supplier: </span><Addr value={lookedUp.supplier} /></div>
                 <div><span className="text-muted-foreground">Memo: </span>{lookedUp.memo}</div>
-                <p className="text-xs text-muted-foreground">Amount: confidential — not stored on-chain</p>
+                <p className="text-xs text-muted-foreground">Amount: confidential — shielded by ZK proof, not stored on-chain</p>
               </div>
             )}
           </div>
+
         </div>
       )}
       <LogPanel logs={logs} />
