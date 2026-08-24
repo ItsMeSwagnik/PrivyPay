@@ -310,8 +310,13 @@ export class ConfidentialWallet {
     if (!recipient) throw new Error("supplier is not registered for confidential transfers");
     const kAudR = await this.client.auditorKey(recipient.auditorId);
     const kAudS = await this.client.auditorKey(this.deployment.auditorId);
-    const s = await this.engine.sync();
-    if (s.spendable.v < amount) throw new Error(`insufficient balance (${stroopsToXlm(s.spendable.v)} XLM)`);
+    let s = await this.engine.sync();
+    if (s.spendable.v < amount && s.spendable.v + s.receiving.v >= amount) {
+      this.log("auto-merging receiving → spendable before payment…");
+      await submitMerge(this.client, this.signer, this.address);
+      s = await this.engine.sync();
+    }
+    if (s.spendable.v < amount) throw new Error(`insufficient balance (${stroopsToXlm(s.spendable.v + s.receiving.v)} XLM total)`);
     const w = buildTransferWitness({ keys: this.keys, v: s.spendable.v, r: s.spendable.r, amount, pvkB: recipient.viewingPublicKey, kAudR, kAudS });
     onPhase?.("proving");
     this.log("proving transfer for invoice payment…");
