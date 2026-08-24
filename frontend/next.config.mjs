@@ -7,7 +7,7 @@ const nextConfig = {
     unoptimized: true,
   },
   devIndicators: false,
-  outputFileTracingRoot: "D:/Swagnik/Codes/PrivyPay/privypay/frontend",
+  outputFileTracingRoot: new URL("..", import.meta.url).pathname,
   transpilePackages: ["@ctd/sdk", "@ctd/disclosure"],
   webpack(config) {
     config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false };
