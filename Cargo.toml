@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = ["contracts/confidential-payroll-batch", "contracts/invoice-vault"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+
+# Pinned to the exact same commit the demo's already-deployed testnet token
+# contract was built against, so our batch contract's ABI assumptions about
+# confidential_transfer match the live contract exactly.
+[workspace.dependencies]
+soroban-sdk = { version = "26.0.0" }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
