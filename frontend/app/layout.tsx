@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google"
+import { Analytics } from "@vercel/analytics/react"
 import "./globals.css"
 import { ActiveDeploymentProvider } from "@/lib/active-deployment"
 import { WalletProvider } from "@/lib/wallet-context"
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ActiveDeploymentProvider>
           <WalletProvider>
             {children}
+            <Analytics />
           </WalletProvider>
         </ActiveDeploymentProvider>
       </body>
