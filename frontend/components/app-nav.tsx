@@ -20,6 +20,7 @@ export function AppNav() {
   const { view, connecting, connect, disconnect } = useWallet();
   const [showDisconnect, setShowDisconnect] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const connected = !!view;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -30,7 +31,6 @@ export function AppNav() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-  const connected = !!view;
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-xl">
@@ -92,6 +92,7 @@ export function AppNav() {
                   </button>
                 </div>
               )}
+            </div>
           ) : (
             <button
               onClick={connect}
