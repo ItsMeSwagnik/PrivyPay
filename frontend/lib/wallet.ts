@@ -340,7 +340,15 @@ export class ConfidentialWallet {
       ],
       this.signer,
     );
-    await this.engine.setSpendable(w.next);
+    // If we auto-merged, update stored state to reflect merge + transfer atomically
+    if (spendV !== s.spendable.v) {
+      // Merge: zero receiving, combine into spendable, then apply transfer deduction
+      const merged = { ...s, spendable: { v: spendV, r: spendR }, receiving: { v: 0n, r: 0n } };
+      merged.spendable = { ...w.next };
+      await (this.engine as unknown as { cfg: { store: { save: (s: unknown) => Promise<void> } } }).cfg.store.save(merged);
+    } else {
+      await this.engine.setSpendable(w.next);
+    }
     this.log(`invoice #${invoiceId} paid confidentially`);
   }
 
