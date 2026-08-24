@@ -9,17 +9,12 @@ import { PageShell } from "@/components/page-shell";
 import { ErrorBox } from "@/components/error-box";
 import { LogPanel } from "@/components/log-panel";
 import { Addr } from "@/components/addr";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronDown, RefreshCw, Share2, X } from "lucide-react";
 import type { TxPhase } from "@/lib/wallet";
+import type { ConfidentialEvent, TransferEvent, DisclosureRequest, DisclosureBundle } from "@ctd/sdk";
 
 type Tab = "deposit" | "withdraw" | "transfer" | "merge";
 
-const TAB_COLORS: Record<Tab, string> = {
-  deposit: "border-sky-500/60 bg-sky-500/10 text-sky-300",
-  withdraw: "border-amber-500/60 bg-amber-500/10 text-amber-300",
-  transfer: "border-violet-500/60 bg-violet-500/10 text-violet-300",
-  merge: "border-emerald-500/60 bg-emerald-500/10 text-emerald-300",
-};
 const BTN_COLORS: Record<Tab, string> = {
   deposit: "bg-sky-600 hover:bg-sky-500 text-white",
   withdraw: "bg-amber-600 hover:bg-amber-500 text-white",
@@ -40,42 +35,39 @@ export default function WalletPage() {
   const [withdrawAmt, setWithdrawAmt] = useState("5");
   const [transferTo, setTransferTo] = useState("");
   const [transferAmt, setTransferAmt] = useState("5");
+  const [events, setEvents] = useState<ConfidentialEvent[] | null>(null);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
-  // Load recipients whenever wallet becomes available
   useEffect(() => {
     if (!wallet || recipientsLoaded) return;
-    wallet.registeredRecipients().then((r) => {
-      setRecipients(r);
-      setRecipientsLoaded(true);
-    }).catch(() => {});
+    wallet.registeredRecipients().then((r) => { setRecipients(r); setRecipientsLoaded(true); }).catch(() => {});
   }, [wallet, recipientsLoaded]);
+
+  const loadEvents = useCallback(async () => {
+    if (!wallet) return;
+    setEventsLoading(true);
+    try { setEvents(await wallet.listEvents()); } catch { /* silent */ }
+    finally { setEventsLoading(false); }
+  }, [wallet]);
+
+  useEffect(() => { void loadEvents(); }, [loadEvents]);
 
   const reloadRecipients = useCallback(async () => {
     if (!wallet) return;
-    const r = await wallet.registeredRecipients();
-    setRecipients(r);
+    setRecipients(await wallet.registeredRecipients());
   }, [wallet]);
 
   const run = useCallback(
     (label: string, fn: () => Promise<void>) => async () => {
-      setError(null);
-      setBusy(label);
-      setPhase(null);
+      setError(null); setBusy(label); setPhase(null);
       try {
         await fn();
         await refreshView();
-        if (label === "connect" && wallet) {
-          setRecipients(await wallet.registeredRecipients());
-        }
-      } catch (e) {
-        setError(errMsg(e));
-        log(`error: ${errMsg(e)}`);
-      } finally {
-        setBusy(null);
-        setPhase(null);
-      }
+        await loadEvents();
+      } catch (e) { setError(errMsg(e)); log(`error: ${errMsg(e)}`); }
+      finally { setBusy(null); setPhase(null); }
     },
-    [wallet, log, refreshView],
+    [wallet, log, refreshView, loadEvents],
   );
 
   const phaseLabel = (p: TxPhase | null) =>
@@ -83,6 +75,8 @@ export default function WalletPage() {
 
   const inputCls = "w-full rounded-xl border border-border/60 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-primary/60 placeholder:text-muted-foreground/50 backdrop-blur-sm";
   const btnCls = "rounded-xl px-5 py-2.5 text-sm font-medium disabled:opacity-50 transition-all";
+
+  const transferEvents = (events ?? []).filter((e): e is TransferEvent => e.type === "transfer");
 
   return (
     <PageShell title="Wallet" subtitle="Manage your confidential balance on Stellar." badge="Confidential">
@@ -135,11 +129,10 @@ export default function WalletPage() {
 
           {view?.registered && (
             <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm overflow-hidden">
-              {/* Tab bar */}
               <div className="grid grid-cols-4 border-b border-border/60">
                 {(["deposit", "withdraw", "transfer", "merge"] as Tab[]).map((t) => (
                   <button key={t} onClick={() => setTab(t)}
-                    className={`py-3 text-xs font-medium capitalize transition-all ${tab === t ? `border-b-2 border-primary text-primary bg-primary/5` : "text-muted-foreground hover:text-foreground hover:bg-white/5"}`}>
+                    className={`py-3 text-xs font-medium capitalize transition-all ${tab === t ? "border-b-2 border-primary text-primary bg-primary/5" : "text-muted-foreground hover:text-foreground hover:bg-white/5"}`}>
                     {t}
                   </button>
                 ))}
@@ -161,17 +154,10 @@ export default function WalletPage() {
                 )}
                 {tab === "transfer" && (
                   <TransferTab
-                    inputCls={inputCls}
-                    btnCls={btnCls}
-                    btnColor={BTN_COLORS.transfer}
-                    recipients={recipients}
-                    transferTo={transferTo}
-                    setTransferTo={setTransferTo}
-                    transferAmt={transferAmt}
-                    setTransferAmt={setTransferAmt}
-                    busy={busy}
-                    phase={phase}
-                    phaseLabel={phaseLabel}
+                    inputCls={inputCls} btnCls={btnCls} btnColor={BTN_COLORS.transfer}
+                    recipients={recipients} transferTo={transferTo} setTransferTo={setTransferTo}
+                    transferAmt={transferAmt} setTransferAmt={setTransferAmt}
+                    busy={busy} phase={phase} phaseLabel={phaseLabel}
                     onReload={reloadRecipients}
                     onSend={run("transfer", () => wallet.transfer(transferTo, xlmToStroops(transferAmt), setPhase))}
                   />
@@ -185,10 +171,128 @@ export default function WalletPage() {
               </div>
             </div>
           )}
+
+          {/* Transaction history + disclosure */}
+          {view?.registered && (
+            <div className="rounded-2xl border border-border/60 bg-card/40 p-5 backdrop-blur-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="font-medium">Transaction history</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Click <Share2 className="inline size-3" /> on any transfer to generate a selective disclosure proof.</p>
+                </div>
+                <button onClick={loadEvents} disabled={eventsLoading} className="rounded-xl border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all disabled:opacity-50">
+                  {eventsLoading ? "Loading…" : "Refresh"}
+                </button>
+              </div>
+
+              {eventsLoading && <p className="text-sm text-muted-foreground">Loading events…</p>}
+              {!eventsLoading && transferEvents.length === 0 && (
+                <p className="text-sm text-muted-foreground">No transfers yet.</p>
+              )}
+              {transferEvents.length > 0 && (
+                <ul className="space-y-2">
+                  {transferEvents.map((ev) => (
+                    <TransferRow key={ev.cursor} ev={ev} wallet={wallet} address={view.address} log={log} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       )}
       <LogPanel logs={logs} />
     </PageShell>
+  );
+}
+
+// ── Transfer row with disclosure ───────────────────────────────────────────
+function TransferRow({ ev, wallet, address, log }: {
+  ev: TransferEvent; wallet: NonNullable<ReturnType<typeof useWallet>["wallet"]>;
+  address: string; log: (m: string) => void;
+}) {
+  const isSent = ev.from === address;
+  const [amount, setAmount] = useState<bigint | null | "loading">("loading");
+  const [showDisclose, setShowDisclose] = useState(false);
+  const [requestJson, setRequestJson] = useState("");
+  const [bundle, setBundle] = useState<DisclosureBundle | null>(null);
+  const [proving, setProving] = useState(false);
+  const [discloseError, setDiscloseError] = useState<string | null>(null);
+
+  useEffect(() => {
+    wallet.transferAmount(ev).then(setAmount).catch(() => setAmount(null));
+  }, [ev, wallet]);
+
+  async function generateBundle() {
+    setDiscloseError(null); setBundle(null); setProving(true);
+    try {
+      let req: DisclosureRequest;
+      try { req = JSON.parse(requestJson); } catch { throw new Error("Request JSON is invalid"); }
+      const b = isSent
+        ? await wallet.discloseSent(ev, req)
+        : await wallet.discloseReceived(ev, req);
+      setBundle(b);
+      log(`disclosure bundle generated for tx ${ev.txHash.slice(0, 14)}…`);
+    } catch (e) { setDiscloseError(errMsg(e)); }
+    finally { setProving(false); }
+  }
+
+  return (
+    <li className="rounded-xl border border-border/40 bg-white/[0.02] p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${isSent ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>
+          {isSent ? "sent" : "received"}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          <Addr value={ev.from} /> → <Addr value={ev.to} />
+        </span>
+        <span className="flex-1" />
+        {amount === "loading" && <span className="text-xs text-muted-foreground">decrypting…</span>}
+        {amount !== "loading" && amount !== null && (
+          <span className="text-sm font-medium">{stroopsToXlm(amount)} XLM</span>
+        )}
+        {amount !== "loading" && amount === null && (
+          <span className="text-xs text-muted-foreground">amount hidden</span>
+        )}
+        <button onClick={() => { setShowDisclose((v) => !v); setBundle(null); setDiscloseError(null); }}
+          className="rounded-lg border border-border/60 p-1.5 text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+          title="Generate disclosure proof">
+          {showDisclose ? <X className="size-3.5" /> : <Share2 className="size-3.5" />}
+        </button>
+      </div>
+      <div className="mt-1 font-mono text-[10px] text-muted-foreground/50">
+        ledger {ev.ledger} · {ev.txHash.slice(0, 14)}…
+      </div>
+
+      {showDisclose && (
+        <div className="mt-3 space-y-2 border-t border-border/40 pt-3">
+          <p className="text-xs text-muted-foreground">
+            Paste the verifier's request JSON from the <a href="/verify" className="text-primary hover:underline">Verify page</a>, then generate the bundle to send back.
+          </p>
+          <textarea
+            value={requestJson}
+            onChange={(e) => setRequestJson(e.target.value)}
+            placeholder='{"pR":{"x":"0x…","y":"0x…"},"nu":"0x…"}'
+            className="w-full rounded-xl border border-border/60 bg-background/50 px-3 py-2 font-mono text-xs outline-none focus:border-primary/60 resize-none h-20"
+          />
+          {discloseError && <p className="text-xs text-destructive">{discloseError}</p>}
+          <button onClick={generateBundle} disabled={proving || !requestJson.trim()}
+            className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50">
+            {proving ? "Proving ZK…" : "Generate bundle"}
+          </button>
+          {bundle && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-emerald-400">Bundle ready — copy and send to the verifier.</p>
+              <textarea readOnly value={JSON.stringify(bundle, null, 2)}
+                className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 font-mono text-xs resize-none h-32 outline-none" />
+              <button onClick={() => navigator.clipboard.writeText(JSON.stringify(bundle))}
+                className="rounded-xl border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all">
+                Copy bundle
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -222,38 +326,20 @@ function TransferTab({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">Send confidentially — amount stays private on-chain.</p>
-
-      {/* Custom dropdown */}
       <div className="flex gap-2">
         <div ref={ref} className="relative flex-1">
-          <button
-            type="button"
-            onClick={() => recipients.length > 0 && setOpen((o) => !o)}
-            className={`flex w-full items-center justify-between rounded-xl border px-4 py-2.5 text-sm transition-all ${
-              open ? "border-primary/60 bg-white/5" : "border-border/60 bg-white/5 hover:border-border"
-            } ${recipients.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-          >
-            <span className={`font-mono text-xs ${selected ? "text-foreground" : "text-muted-foreground"}`}>
-              {label}
-            </span>
+          <button type="button" onClick={() => recipients.length > 0 && setOpen((o) => !o)}
+            className={`flex w-full items-center justify-between rounded-xl border px-4 py-2.5 text-sm transition-all ${open ? "border-primary/60 bg-white/5" : "border-border/60 bg-white/5 hover:border-border"} ${recipients.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+            <span className={`font-mono text-xs ${selected ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
             <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
-
           {open && (
             <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-border/60 bg-[oklch(0.16_0.035_264)] shadow-2xl shadow-black/60 backdrop-blur-xl">
               <div className="max-h-52 overflow-y-auto">
                 {recipients.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => { setTransferTo(r); setOpen(false); }}
-                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 ${
-                      r === selected ? "bg-primary/10" : ""
-                    }`}
-                  >
-                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary">
-                      {r.slice(0, 2)}
-                    </span>
+                  <button key={r} type="button" onClick={() => { setTransferTo(r); setOpen(false); }}
+                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 ${r === selected ? "bg-primary/10" : ""}`}>
+                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary">{r.slice(0, 2)}</span>
                     <div className="min-w-0">
                       <p className="font-mono text-xs text-foreground">{r.slice(0, 16)}…{r.slice(-12)}</p>
                       <p className="text-[10px] text-muted-foreground">Registered account</p>
@@ -265,25 +351,16 @@ function TransferTab({
             </div>
           )}
         </div>
-
-        <button
-          onClick={onReload}
-          title="Refresh recipient list"
-          className="shrink-0 rounded-xl border border-border/60 px-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
-        >
+        <button onClick={onReload} title="Refresh recipient list"
+          className="shrink-0 rounded-xl border border-border/60 px-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all">
           <RefreshCw className="size-4" />
         </button>
       </div>
-
-      {recipients.length === 0 && (
-        <p className="text-xs text-muted-foreground">No registered accounts found. Ask the recipient to register first, then click refresh.</p>
-      )}
-
+      {recipients.length === 0 && <p className="text-xs text-muted-foreground">No registered accounts found. Ask the recipient to register first, then click refresh.</p>}
       <div className="relative">
         <input className={inputCls} value={transferAmt} onChange={(e) => setTransferAmt(e.target.value)} placeholder="Amount" />
         <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-muted-foreground">XLM</span>
       </div>
-
       <button onClick={onSend} disabled={busy !== null || !selected} className={`${btnCls} ${btnColor}`}>
         {busy === "transfer" ? phaseLabel(phase) : "Send"}
       </button>
