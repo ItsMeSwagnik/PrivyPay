@@ -17,6 +17,7 @@ import {
   buildRegisterWitness,
   buildWithdrawWitness,
   buildTransferWitness,
+  fpAdd,
   submitRegister,
   submitDeposit,
   submitMerge,
@@ -311,13 +312,17 @@ export class ConfidentialWallet {
     const kAudR = await this.client.auditorKey(recipient.auditorId);
     const kAudS = await this.client.auditorKey(this.deployment.auditorId);
     let s = await this.engine.sync();
-    if (s.spendable.v < amount && s.spendable.v + s.receiving.v >= amount) {
+    let spendV = s.spendable.v;
+    let spendR = s.spendable.r;
+    if (spendV < amount && spendV + s.receiving.v >= amount) {
       this.log("auto-merging receiving → spendable before payment…");
       await submitMerge(this.client, this.signer, this.address);
-      s = await this.engine.sync();
+      // Apply merge locally — sync() won’t see the new event yet (cursor lag)
+      spendV = s.spendable.v + s.receiving.v;
+      spendR = fpAdd(s.spendable.r, s.receiving.r);
     }
-    if (s.spendable.v < amount) throw new Error(`insufficient balance (${stroopsToXlm(s.spendable.v + s.receiving.v)} XLM total)`);
-    const w = buildTransferWitness({ keys: this.keys, v: s.spendable.v, r: s.spendable.r, amount, pvkB: recipient.viewingPublicKey, kAudR, kAudS });
+    if (spendV < amount) throw new Error(`insufficient balance (${stroopsToXlm(spendV)} XLM)`);
+    const w = buildTransferWitness({ keys: this.keys, v: spendV, r: spendR, amount, pvkB: recipient.viewingPublicKey, kAudR, kAudS });
     onPhase?.("proving");
     this.log("proving transfer for invoice payment…");
     const { proof } = await this.prover("transfer").prove(w.inputs);
