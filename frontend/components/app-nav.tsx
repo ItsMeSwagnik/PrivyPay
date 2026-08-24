@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { Wallet } from "lucide-react";
 import { useWallet } from "@/lib/wallet-context";
 import { truncateAddr } from "@/lib/format";
@@ -17,6 +18,18 @@ const NAV_LINKS = [
 export function AppNav() {
   const pathname = usePathname();
   const { view, connecting, connect, disconnect } = useWallet();
+  const [showDisconnect, setShowDisconnect] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDisconnect(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const connected = !!view;
 
   return (
@@ -59,22 +72,26 @@ export function AppNav() {
 
           {/* Wallet connect / status */}
           {connected ? (
-            <div className="relative group">
-              <button className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5">
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setShowDisconnect((v) => !v)}
+                className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5"
+              >
                 <span className="size-1.5 rounded-full bg-emerald-400" />
                 <span className="font-mono text-xs text-emerald-400">
                   {truncateAddr(view.address, 4, 4)}
                 </span>
               </button>
-              <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-50">
-                <button
-                  onClick={disconnect}
-                  className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-4 py-2 text-xs text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors whitespace-nowrap shadow-lg"
-                >
-                  Disconnect
-                </button>
-              </div>
-            </div>
+              {showDisconnect && (
+                <div className="absolute right-0 top-full mt-1 z-50">
+                  <button
+                    onClick={() => { disconnect(); setShowDisconnect(false); }}
+                    className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-4 py-2 text-xs text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors whitespace-nowrap shadow-lg"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              )}
           ) : (
             <button
               onClick={connect}
