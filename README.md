@@ -1,5 +1,7 @@
 # 🔐 PrivyPay — Private B2B Payroll & Invoicing on Stellar (Soroban)
 
+<img width="1900" height="1025" alt="image" src="https://github.com/user-attachments/assets/52515551-fc8d-4ca3-b2a5-7d9403a0020a" />
+
 **Confidential payroll and B2B invoicing powered by UltraHonk ZK proofs on Stellar Soroban.**
 
 PrivyPay brings financial privacy to on-chain payroll and invoicing. Transaction amounts are shielded using Pedersen commitments — only the named sender, recipient, and a designated auditor can ever see them. Everything else (the fact a payment happened, who the parties are) is public by design.
@@ -391,7 +393,7 @@ Verify any transaction at: `https://stellar.expert/explorer/testnet/tx/<hash>`
 
 | Environment | URL |
 |---|---|
-| Production | <!-- Add live demo URL here --> |
+| Production | https://stellar-privypay.vercel.app |
 
 ---
 
