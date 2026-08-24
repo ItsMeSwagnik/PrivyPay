@@ -1,4 +1,4 @@
-# 🔐 PrivyPay — Private B2B Payroll & Invoicing on Stellar
+# 🔐 PrivyPay — Private B2B Payroll & Invoicing on Stellar (Soroban)
 
 **Confidential payroll and B2B invoicing powered by UltraHonk ZK proofs on Stellar Soroban.**
 
@@ -8,24 +8,16 @@ PrivyPay brings financial privacy to on-chain payroll and invoicing. Transaction
 
 ## 📌 What It Does
 
-- **Confidential Wallet** — deposit XLM into a shielded balance, merge, transfer privately, withdraw back to public
-- **Payroll** — employer runs an atomic batch of confidential transfers to all employees in one transaction; either fully succeeds or fully reverts
+- Anyone can **register** a confidential account by deriving a Grumpkin keypair from a Freighter signature and binding it on-chain with a ZK proof
+- **Deposit** public XLM into a shielded balance — no proof needed, just a standard transfer
+- **Merge** the receiving balance into the spendable balance before sending
+- **Transfer privately** — amount is a Pedersen commitment on-chain; only sender, recipient, and auditor can see it
+- **Payroll** — employer runs an atomic batch of confidential transfers to all employees; either fully succeeds or fully reverts
 - **Delegated Payroll** — employer approves once via `set_spender`, payroll runs on schedule without a fresh signature every cycle
 - **B2B Invoicing** — create invoices on-chain (public metadata, private amount), pay via confidential transfer, cancel if needed
 - **Auditor Console** — compliance auditor decrypts every transfer amount using a designated Grumpkin key, without any account cooperation
 - **Selective Disclosure** — prove a single payment amount to a third party via a one-time ZK proof, without revealing anything else
-
----
-
-## ⚙️ How It Works
-
-1. **Register** — derives Grumpkin keypair from a Freighter signature, binds it to the token contract with a UltraHonk ZK proof
-2. **Deposit** — moves public XLM into a confidential receiving balance (no proof needed)
-3. **Merge** — folds receiving → spendable balance
-4. **Transfer / Payroll** — generates a client-side UltraHonk proof, submits `confidential_transfer`; amount is a Pedersen commitment on-chain
-5. **Auditor** — designated auditor key decrypts every transfer's dual ECDH ciphertext without account cooperation
-6. **Selective Disclosure** — holder proves a single payment to a third party via ZK, without revealing anything else
-7. **Withdraw** — converts confidential balance back to public XLM
+- **Withdraw** — convert confidential balance back to public XLM at any time
 
 ---
 
@@ -41,6 +33,7 @@ PrivyPay brings financial privacy to on-chain payroll and invoicing. Transaction
 | 🔍 Selective Disclosure | Prove a specific payment to a third party via ZK without revealing anything else |
 | 🔑 Freighter Integration | Deterministic Grumpkin key derivation from a Freighter wallet signature |
 | 🌐 Permissionless | No admin, no owner, no allowlist — any account can register, pay, invoice |
+| 🔗 Cross-Contract Calls | Payroll and invoice contracts call the confidential token via `env.invoke_contract` |
 
 ---
 
@@ -88,22 +81,91 @@ PrivyPay/
 │       ├── sdk/                          # @ctd/sdk — Grumpkin/Poseidon2 crypto + chain client
 │       └── disclosure/                   # Selective disclosure circuit artifacts
 ├── Cargo.toml                            # Workspace root
+├── .gitignore
 └── README.md
 ```
 
 ---
 
-## 🔗 Deployed Contracts (Stellar Testnet)
+## 🔌 Wallet & Key Integration
 
-| Contract | Address |
+**[`frontend/lib/freighter.ts`](frontend/lib/freighter.ts)** — wraps `@stellar/freighter-api`, exposes a `MessageSigner` that handles both transaction signing and message signing for key derivation:
+
+```ts
+// Connect Freighter — returns a signer with publicKey, sign(), signMessage()
+export async function connectFreighter(): Promise<MessageSigner>
+```
+
+**[`frontend/lib/derive-key.ts`](frontend/lib/derive-key.ts)** — deterministic Grumpkin key derivation from a Freighter signature:
+
+```ts
+// Returns the message the user must sign to derive their confidential key
+export function keyDerivationMessage(networkPassphrase: string, tokenContract: string): string
+
+// SHA-512 hashes the signature, reduces mod the Grumpkin scalar field
+export async function skFromSignature(signature: Uint8Array): Promise<bigint>
+```
+
+**[`frontend/lib/rpc.ts`](frontend/lib/rpc.ts)** — wires the SDK's `ChainClient` to the deployment config:
+
+```ts
+// Returns a ChainClient (always) and optional IndexerClient (if NEXT_PUBLIC_INDEXER_URL is set)
+export function clientsFor(deployment: Deployment): { client: ChainClient; indexer?: IndexerClient }
+```
+
+---
+
+## 🔁 Frontend ↔ Contract Flow
+
+```
+Browser (Freighter)
+  │
+  ├─ derive Grumpkin keypair from wallet signature      (derive-key.ts)
+  ├─ generate UltraHonk proof client-side (bb.js)       (bb-loader.ts)
+  │
+  ├─ wallet/     → confidential_transfer                (token contract)
+  ├─ payroll/    → run_payroll / run_delegated_payroll  (payroll batch contract)
+  │                  └─ cross-contract → confidential_transfer (token contract)
+  ├─ invoices/   → create_invoice / pay_invoice         (invoice vault contract)
+  │                  └─ cross-contract → confidential_transfer (token contract)
+  ├─ auditor/    → decrypt transfer amounts via auditor Grumpkin key (client-side)
+  └─ verify/     → prove single payment via disclosure ZK circuit   (client-side)
+```
+
+### ConfidentialWallet method → contract call mapping
+
+| [`wallet.ts`](frontend/lib/wallet.ts) method | Contract call |
 |---|---|
-| Confidential Token | [`CCTNP6DDSR54WIVXXBWYDGZR2K5IBPKHPDDTSBYBHOGI4EOQRKB6AUXS`](https://stellar.expert/explorer/testnet/contract/CCTNP6DDSR54WIVXXBWYDGZR2K5IBPKHPDDTSBYBHOGI4EOQRKB6AUXS) |
-| Verifier | [`CDVAOCM6KFFCNFRK2ZREHVJ3T2S2OSQFD4CZUYKMJHHZ5TBC6BEQBF3E`](https://stellar.expert/explorer/testnet/contract/CDVAOCM6KFFCNFRK2ZREHVJ3T2S2OSQFD4CZUYKMJHHZ5TBC6BEQBF3E) |
-| Auditor | [`CBPY4UGGVBFK7YKSET4NSSJDY4JU6RCOXJZNGUBVEBOBNTYZCJGELF2X`](https://stellar.expert/explorer/testnet/contract/CBPY4UGGVBFK7YKSET4NSSJDY4JU6RCOXJZNGUBVEBOBNTYZCJGELF2X) |
-| Underlying (XLM SAC) | [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) |
-| Factory | [`CA7KMB4NMCZ3EA34RKA4VTJ6W7MLRURW62NK3FOWBKSZETS2D4P2DIS5`](https://stellar.expert/explorer/testnet/contract/CA7KMB4NMCZ3EA34RKA4VTJ6W7MLRURW62NK3FOWBKSZETS2D4P2DIS5) |
-| Payroll Batch | [`CDLI6RUL6EQJEHYJBGSOG5DIMKIMNTWNTUKRK4GVHVDCZFWYQCWVW3L5`](https://stellar.expert/explorer/testnet/contract/CDLI6RUL6EQJEHYJBGSOG5DIMKIMNTWNTUKRK4GVHVDCZFWYQCWVW3L5) |
-| Invoice Vault | [`CAYIM5I7JVP2NGA5Z3KEBYCCVTNKWQQ2TODCHDNESZTTP7QH3BSH5O5P`](https://stellar.expert/explorer/testnet/contract/CAYIM5I7JVP2NGA5Z3KEBYCCVTNKWQQ2TODCHDNESZTTP7QH3BSH5O5P) |
+| `register()` | `confidential_token::register` |
+| `deposit(amount)` | `confidential_token::deposit` |
+| `merge()` | `confidential_token::merge` |
+| `transfer(to, amount)` | `confidential_token::confidential_transfer` |
+| `withdraw(amount)` | `confidential_token::withdraw` |
+
+### Data Types
+
+```rust
+// ConfidentialPayrollBatch
+struct PayrollLeg {
+    to: Address,
+    data: Bytes,   // XDR-encoded { payload, proof } — opaque, forwarded verbatim
+}
+
+struct DelegatedPayrollLeg {
+    to: Address,
+    data: Bytes,   // XDR-encoded SpenderTransferData envelope
+}
+
+// InvoiceVault
+struct Invoice {
+    buyer: Address,
+    supplier: Address,
+    memo: String,          // PO number / description — public, never put amounts here
+    status: InvoiceStatus,
+}
+
+enum InvoiceStatus { Created, Paid, Cancelled }
+```
 
 ---
 
@@ -123,18 +185,6 @@ View-only. Returns the number of legs in a direct-mode batch.
 #### `delegated_batch_size(legs) → u32`
 View-only. Returns the number of legs in a delegated-mode batch.
 
-```rust
-struct PayrollLeg {
-    to: Address,
-    data: Bytes,   // XDR-encoded { payload, proof } envelope — opaque to this contract
-}
-
-struct DelegatedPayrollLeg {
-    to: Address,
-    data: Bytes,   // XDR-encoded SpenderTransferData envelope
-}
-```
-
 ---
 
 ### InvoiceVault
@@ -151,35 +201,33 @@ Cancels an unpaid invoice. Only the named buyer or supplier can cancel.
 #### `get_invoice(invoice_id) → Invoice`
 Returns public invoice metadata and status. No auth required.
 
-```rust
-struct Invoice {
-    buyer: Address,
-    supplier: Address,
-    memo: String,       // PO number, description — public, never put amounts here
-    status: InvoiceStatus,
-}
-
-enum InvoiceStatus { Created, Paid, Cancelled }
-```
-
 ---
 
-## 🔁 Frontend ↔ Contract Flow
+## 🔗 Cross-Contract Communication
+
+Both `ConfidentialPayrollBatch` and `InvoiceVault` call the confidential token via `env.invoke_contract` — they never import the token trait directly because the proof envelope is built client-side and forwarded opaquely:
 
 ```
-Browser (Freighter)
-  │
-  ├─ derive Grumpkin keypair from wallet signature
-  ├─ generate UltraHonk proof client-side (bb.js)
-  │
-  ├─ wallet/     → confidential_transfer (token contract)
-  ├─ payroll/    → run_payroll / run_delegated_payroll (payroll batch contract)
-  │                  └─ cross-contract → confidential_transfer (token contract)
-  ├─ invoices/   → create_invoice / pay_invoice (invoice vault contract)
-  │                  └─ cross-contract → confidential_transfer (token contract)
-  ├─ auditor/    → decrypt all transfer amounts via auditor Grumpkin key (client-side)
-  └─ verify/     → prove single payment via disclosure ZK circuit (client-side)
+Employer → ConfidentialPayrollBatch::run_payroll()
+                │
+                │  env.invoke_contract (for each leg)
+                ▼
+         ConfidentialToken::confidential_transfer()
+                │
+                └─ verifies UltraHonk proof on-chain
+                └─ updates Pedersen commitments in storage
+                └─ emits transfer event (encrypted ciphertext for auditor)
+
+Buyer → InvoiceVault::pay_invoice()
+                │
+                │  env.invoke_contract
+                ▼
+         ConfidentialToken::confidential_transfer()
+                │
+                └─ marks invoice Paid only if transfer succeeds
 ```
+
+Both contracts are independently deployed and stateless with respect to each other — the token address is passed at call time, making the system fully composable.
 
 ---
 
@@ -219,7 +267,7 @@ npm i -g pnpm@10
 # https://freighter.app/
 ```
 
-### 1. Clone & install frontend dependencies
+### 1. Clone & install
 
 ```bash
 git clone <repo-url>
@@ -275,6 +323,30 @@ stellar contract deploy \
 
 Update `frontend/lib/deployment.ts` with the printed contract IDs.
 
+### CLI Invoke Example
+
+```bash
+# Create an invoice
+stellar contract invoke \
+  --id CAYIM5I7JVP2NGA5Z3KEBYCCVTNKWQQ2TODCHDNESZTTP7QH3BSH5O5P \
+  --source-account admin \
+  --network testnet \
+  -- \
+  create_invoice \
+  --buyer <BUYER_ADDRESS> \
+  --supplier <SUPPLIER_ADDRESS> \
+  --memo "INV-2026-001"
+
+# Check invoice status
+stellar contract invoke \
+  --id CAYIM5I7JVP2NGA5Z3KEBYCCVTNKWQQ2TODCHDNESZTTP7QH3BSH5O5P \
+  --source-account admin \
+  --network testnet \
+  -- \
+  get_invoice \
+  --invoice_id 0
+```
+
 ---
 
 ## 🌐 App Pages
@@ -287,6 +359,65 @@ Update `frontend/lib/deployment.ts` with the printed contract IDs.
 | `/invoices` | B2B invoicing — create, pay, and look up invoices |
 | `/auditor` | Compliance auditor console — decrypt all transfer amounts |
 | `/verify` | Selective disclosure verifier — prove a single payment |
+
+---
+
+## 🔗 Deployed Contracts (Stellar Testnet)
+
+| Contract | Address |
+|---|---|
+| Confidential Token | [`CCTNP6DDSR54WIVXXBWYDGZR2K5IBPKHPDDTSBYBHOGI4EOQRKB6AUXS`](https://stellar.expert/explorer/testnet/contract/CCTNP6DDSR54WIVXXBWYDGZR2K5IBPKHPDDTSBYBHOGI4EOQRKB6AUXS) |
+| Verifier | [`CDVAOCM6KFFCNFRK2ZREHVJ3T2S2OSQFD4CZUYKMJHHZ5TBC6BEQBF3E`](https://stellar.expert/explorer/testnet/contract/CDVAOCM6KFFCNFRK2ZREHVJ3T2S2OSQFD4CZUYKMJHHZ5TBC6BEQBF3E) |
+| Auditor | [`CBPY4UGGVBFK7YKSET4NSSJDY4JU6RCOXJZNGUBVEBOBNTYZCJGELF2X`](https://stellar.expert/explorer/testnet/contract/CBPY4UGGVBFK7YKSET4NSSJDY4JU6RCOXJZNGUBVEBOBNTYZCJGELF2X) |
+| Underlying (XLM SAC) | [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) |
+| Factory | [`CA7KMB4NMCZ3EA34RKA4VTJ6W7MLRURW62NK3FOWBKSZETS2D4P2DIS5`](https://stellar.expert/explorer/testnet/contract/CA7KMB4NMCZ3EA34RKA4VTJ6W7MLRURW62NK3FOWBKSZETS2D4P2DIS5) |
+| Payroll Batch | [`CDLI6RUL6EQJEHYJBGSOG5DIMKIMNTWNTUKRK4GVHVDCZFWYQCWVW3L5`](https://stellar.expert/explorer/testnet/contract/CDLI6RUL6EQJEHYJBGSOG5DIMKIMNTWNTUKRK4GVHVDCZFWYQCWVW3L5) |
+| Invoice Vault | [`CAYIM5I7JVP2NGA5Z3KEBYCCVTNKWQQ2TODCHDNESZTTP7QH3BSH5O5P`](https://stellar.expert/explorer/testnet/contract/CAYIM5I7JVP2NGA5Z3KEBYCCVTNKWQQ2TODCHDNESZTTP7QH3BSH5O5P) |
+
+---
+
+## 🔗 Deployment Transactions
+
+| Contract | Deploy Transaction |
+|---|---|
+| Payroll Batch | [`b9142c8801943fcf49d20df85695e3e2c094e167b83fcfb756f0531bdf32d9e9`](https://stellar.expert/explorer/testnet/tx/b9142c8801943fcf49d20df85695e3e2c094e167b83fcfb756f0531bdf32d9e9) |
+| Invoice Vault | [`d3b3debbcb9be78043415c8b1b5d6f02b5fd1001647c91b764ff388ad31647c2`](https://stellar.expert/explorer/testnet/tx/d3b3debbcb9be78043415c8b1b5d6f02b5fd1001647c91b764ff388ad31647c2) |
+
+Verify any transaction at: `https://stellar.expert/explorer/testnet/tx/<hash>`
+
+---
+
+## 🌐 Live Demo
+
+| Environment | URL |
+|---|---|
+| Production | <!-- Add live demo URL here --> |
+
+---
+
+## 🎬 Demo Video
+
+<!-- Add demo video link here -->
+
+---
+
+## 📸 Screenshots
+
+### Confidential Wallet
+
+<!-- Add wallet page screenshot here -->
+
+### Payroll Dashboard
+
+<!-- Add payroll screenshot here -->
+
+### B2B Invoicing
+
+<!-- Add invoices screenshot here -->
+
+### Auditor Console
+
+<!-- Add auditor screenshot here -->
 
 ---
 
