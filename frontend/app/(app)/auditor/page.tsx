@@ -44,6 +44,7 @@ export default function AuditorPage() {
   const [accounts, setAccounts] = useState<AccountView[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const auditorSk = useMemo(() => fromHex(active.auditorSecretHex), [active.auditorSecretHex]);
   const kAud = useMemo(() => pointCoords(auditorPublicKey(auditorSk)), [auditorSk]);
 
@@ -63,14 +64,16 @@ export default function AuditorPage() {
   const btnCls = "rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50 transition-all border border-border/60 text-muted-foreground hover:text-foreground hover:bg-white/5";
 
   return (
-    <PageShell title="Auditor Console" subtitle="Designated auditor view — decrypt all transfer amounts using the auditor key. No wallet or account cooperation required." badge="Compliance">
+    <PageShell title="Auditor Console" subtitle="Compliance view — all confidential transfer amounts decrypted in your browser using the designated auditor key. No wallet or account cooperation required." badge="Compliance">
       {error && <ErrorBox className="mb-6">{error}</ErrorBox>}
       <div className="space-y-5">
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 backdrop-blur-sm">
-          <h2 className="mb-1 font-medium text-amber-400">Auditor key (id {active.auditorId})</h2>
-          <p className="mb-3 text-xs text-muted-foreground">Demo-only: this secret is published so anyone can play the auditor role. In production it lives in the auditor's vault — only the public key K_aud = k·H is registered on-chain.</p>
+
+        <div className="rounded-2xl border border-border/60 bg-card/40 p-5 backdrop-blur-sm">
+          <h2 className="mb-1 font-medium">Auditor key (id {active.auditorId})</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            The designated auditor public key is registered on-chain. Every confidential transfer is dual-encrypted to this key — amounts are decryptable here without any sender or recipient cooperation.
+          </p>
           <dl className="space-y-1 break-all font-mono text-xs text-muted-foreground">
-            <div><dt className="inline">k: </dt><dd className="inline text-foreground/80">{active.auditorSecretHex}</dd></div>
             <div><dt className="inline">K_aud.x: </dt><dd className="inline text-foreground/80">{toHex32(kAud.x)}</dd></div>
             <div><dt className="inline">K_aud.y: </dt><dd className="inline text-foreground/80">{toHex32(kAud.y)}</dd></div>
           </dl>
@@ -92,7 +95,7 @@ export default function AuditorPage() {
 
         <div className="rounded-2xl border border-border/60 bg-card/40 p-5 backdrop-blur-sm">
           <h2 className="mb-1 font-medium">Decrypted activity</h2>
-          <p className="mb-4 text-xs text-muted-foreground">All token events, newest first. Confidential amounts appear in cleartext — decrypted with your auditor key alone.</p>
+          <p className="mb-4 text-xs text-muted-foreground">All token events, newest first. Confidential amounts appear in cleartext — decrypted client-side with the auditor key.</p>
           {!rows && busy && <p className="text-sm text-muted-foreground">Syncing events…</p>}
           {rows?.length === 0 && <p className="text-sm text-muted-foreground">No activity in the retention window.</p>}
           {rows && (
