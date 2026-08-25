@@ -291,7 +291,35 @@ cp .env.example .env.local
 
 `.env.local` already has all deployed contract addresses — no changes needed for testnet.
 
-### 3. Run the frontend
+### 3. Auditor Key Setup (Optional)
+
+The auditor console requires a secret key to decrypt transaction amounts. By default, the testnet auditor key is included in `.env.local` for testing.
+
+**For production deployments:**
+
+1. Generate a new auditor keypair:
+```typescript
+import { keygen } from "@ctd/sdk";
+const { secretKey, publicKey } = keygen();
+console.log("Auditor Secret:", toHex(secretKey));
+console.log("Auditor Public:", pointCoords(publicKey));
+```
+
+2. Add to `.env.local` (DO NOT commit):
+```bash
+NEXT_PUBLIC_AUDITOR_SECRET_HEX=0x...
+NEXT_PUBLIC_AUDITOR_ID=0
+```
+
+3. Share the key ONLY with the designated compliance auditor
+
+**Privacy Model:**
+- ✅ **Deposits/Withdrawals**: Always visible (public amounts)
+- ✅ **Confidential Transfers (no key)**: Amounts encrypted 🔒
+- ✅ **Confidential Transfers (with key)**: Amounts decrypted
+- ❌ **Hardcoded in repo**: Anyone can decrypt (localhost only for testing - not for production)
+
+### 4. Run the frontend
 
 ```bash
 pnpm dev

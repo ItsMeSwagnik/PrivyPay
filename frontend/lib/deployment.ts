@@ -30,8 +30,8 @@ export const DEFAULT_DEPLOYMENT: Deployment = {
   networkPassphrase: Networks.TESTNET,
   indexerUrl: INDEXER_URL,
   deployedAtLedger: 4307129,
-  auditorId: 0,
-  auditorSecretHex: "0x00a93ee91f6bd0ed4d2bad68b48d260ceb0ac8a35c069d869a869ede6cd77fcd",
+  auditorId: parseInt(process.env.NEXT_PUBLIC_AUDITOR_ID || "0", 10),
+  auditorSecretHex: process.env.NEXT_PUBLIC_AUDITOR_SECRET_HEX || "",
   contracts: {
     token: "CCTNP6DDSR54WIVXXBWYDGZR2K5IBPKHPDDTSBYBHOGI4EOQRKB6AUXS",
     verifier: "CDVAOCM6KFFCNFRK2ZREHVJ3T2S2OSQFD4CZUYKMJHHZ5TBC6BEQBF3E",
