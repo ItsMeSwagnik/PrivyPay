@@ -433,7 +433,9 @@ Verify any transaction at: `https://stellar.expert/explorer/testnet/tx/<hash>`
 
 We collect feedback from real users to improve PrivyPay.
 
-👉 **[Leave feedback here](https://forms.gle/your-form-id)**
+👉 **[Leave feedback here](https://forms.gle/jtaNivDd1WBPC1TbA)**
+
+📊 **[View feedback responses](https://docs.google.com/spreadsheets/d/1PvRRcRhl-dCawtsZBotP8CK-QEezmRRi1QUPAbpaIm4/edit?usp=sharing)**
 
 Feedback is also linked in the app navigation and landing page footer.
 

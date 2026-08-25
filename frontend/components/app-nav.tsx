@@ -15,7 +15,7 @@ const NAV_LINKS = [
   { href: "/verify", label: "Verify" },
 ];
 
-const FEEDBACK_URL = "https://forms.gle/your-form-id"; // replace with real form URL
+const FEEDBACK_URL = "https://forms.gle/jtaNivDd1WBPC1TbA";
 
 export function AppNav() {
   const pathname = usePathname();
