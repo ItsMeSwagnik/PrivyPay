@@ -17,6 +17,9 @@ import { errMsg } from "@/lib/err";
 import { stroopsToXlm } from "@/lib/format";
 import { PageShell } from "@/components/page-shell";
 import { Addr } from "@/components/addr";
+import { Check, Copy, FlaskConical, Share2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const RR_KEY = "privypay:disclosure:rR";
 const REQUEST_KEY = "privypay:disclosure:request";
@@ -42,10 +45,12 @@ function parseBundle(json: string): DisclosureBundle {
 
 export default function VerifyPage() {
   const { active } = useActiveDeployment();
+  const router = useRouter();
   const [keys, setKeys] = useState<RecipientKeys | null>(null);
   const [request, setRequest] = useState<DisclosureRequest | null>(null);
   const [bundleJson, setBundleJson] = useState("");
   const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [result, setResult] = useState<VerifiedDisclosure | null>(null);
   const [error, setError] = useState<{ stage: string; message: string } | null>(null);
 
@@ -68,10 +73,38 @@ export default function VerifyPage() {
 
   const mintRequest = useCallback(() => {
     if (!keys) return;
+    setCreating(true);
     const req = newDisclosureRequest(keys);
     localStorage.setItem(REQUEST_KEY, JSON.stringify(req));
     setRequest(req); setResult(null); setError(null);
+    setCreating(false);
+    toast.success("Request created", {
+      description: "New disclosure request ready to share",
+    });
   }, [keys]);
+
+  const copyRequest = useCallback(() => {
+    if (!request) return;
+    navigator.clipboard.writeText(JSON.stringify(request, null, 2));
+    toast.success("Copied", {
+      description: "Request JSON copied to clipboard",
+    });
+  }, [request]);
+
+  const copyBundle = useCallback(() => {
+    if (!bundleJson) return;
+    navigator.clipboard.writeText(bundleJson);
+    toast.success("Copied", {
+      description: "Bundle JSON copied to clipboard",
+    });
+  }, [bundleJson]);
+
+  const fillSampleBundle = useCallback(() => {
+    router.push("/wallet");
+    toast.info("Navigating to Wallet", {
+      description: "Generate a disclosure bundle there and paste it here",
+    });
+  }, [router]);
 
   const verify = useCallback(async () => {
     if (!keys || !request) return;
@@ -81,10 +114,17 @@ export default function VerifyPage() {
       const bundle = parseBundle(bundleJson);
       const { client, indexer } = clientsFor(active);
       const artifacts = ARTIFACTS[bundle.circuitId];
-      setResult(await verifyDisclosure({ client, indexer, bundle, request, keys, prover: proverFor(bundle.circuitId), pinnedVk: vkBytes(artifacts.vk.vkBase64) }));
+      const verified = await verifyDisclosure({ client, indexer, bundle, request, keys, prover: proverFor(bundle.circuitId), pinnedVk: vkBytes(artifacts.vk.vkBase64) });
+      setResult(verified);
+      toast.success("Verification successful", {
+        description: `Disclosure verified: ${stroopsToXlm(verified.amount)} XLM`,
+      });
     } catch (e) {
       if (e instanceof DisclosureVerifyError) setError({ stage: e.stage, message: e.message });
       else setError({ stage: "input", message: errMsg(e) });
+      toast.error("Verification failed", {
+        description: errMsg(e),
+      });
     } finally { setBusy(false); }
   }, [keys, request, bundleJson, active, proverFor]);
 
@@ -92,8 +132,27 @@ export default function VerifyPage() {
   const btnCls = "rounded-xl px-5 py-2.5 text-sm font-medium disabled:opacity-50 transition-all";
 
   return (
-    <PageShell title="Verify Disclosure" subtitle="For compliance desks or counterparties that need proof of a single payment. You learn exactly one amount about exactly one transfer — nothing else. No wallet required." badge="Compliance">
+    <PageShell title="Verify Disclosure" subtitle="For compliance desks or counterparties that need proof of a single payment." badge="Compliance">
       <div className="space-y-5">
+        {/* Quick start guide */}
+        <div className="rounded-2xl border border-border/60 bg-card/40 p-5 backdrop-blur-sm">
+          <h3 className="font-medium mb-2 text-sm">How verification works</h3>
+          <ol className="space-y-2 text-sm text-muted-foreground">
+            <li className="flex gap-2">
+              <span className="grid size-5 place-items-center rounded-full bg-primary/10 text-xs font-medium text-primary flex-shrink-0">1</span>
+              <span>Create a request (Step 1) and share it with the account holder</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="grid size-5 place-items-center rounded-full bg-primary/10 text-xs font-medium text-primary flex-shrink-0">2</span>
+              <span>Holder generates proof in their <a href="/wallet" className="text-primary hover:underline">Wallet</a> page</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="grid size-5 place-items-center rounded-full bg-primary/10 text-xs font-medium text-primary flex-shrink-0">3</span>
+              <span>Paste their bundle here and verify against chain</span>
+            </li>
+          </ol>
+        </div>
+
         {/* Step 1 */}
         <div className="rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm space-y-4">
           <div className="flex items-center gap-2">
@@ -102,11 +161,12 @@ export default function VerifyPage() {
           </div>
           <p className="text-sm text-muted-foreground">Hand this JSON to the account holder. They paste it into their wallet to generate a proof. The nonce is one-time — a proof bound to it cannot be replayed.</p>
           <div className="flex gap-3">
-            <button onClick={mintRequest} disabled={!keys} className={`${btnCls} bg-primary text-primary-foreground hover:brightness-110`}>
-              {request ? "New request (fresh nonce)" : "Create request"}
+            <button onClick={mintRequest} disabled={!keys || creating} className={`${btnCls} bg-primary text-primary-foreground hover:brightness-110`}>
+              {creating ? "Creating…" : request ? "New request (fresh nonce)" : "Create request"}
             </button>
             {request && (
-              <button onClick={() => navigator.clipboard.writeText(JSON.stringify(request, null, 2))} className={`${btnCls} border border-border/60 text-muted-foreground hover:text-foreground hover:bg-white/5`}>
+              <button onClick={copyRequest} disabled={creating} className={`${btnCls} border border-border/60 text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2`}>
+                <Copy className="size-4" />
                 Copy
               </button>
             )}
@@ -116,16 +176,36 @@ export default function VerifyPage() {
 
         {/* Step 2 */}
         <div className="rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="grid size-6 place-items-center rounded-full bg-primary/10 text-xs font-medium text-primary">2</span>
-            <h2 className="font-medium">Verify the holder's bundle</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="grid size-6 place-items-center rounded-full bg-primary/10 text-xs font-medium text-primary">2</span>
+              <h2 className="font-medium">Verify the holder's bundle</h2>
+            </div>
+            <button onClick={fillSampleBundle} className={`${btnCls} border border-border/60 text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2 text-xs`}>
+              <Share2 className="size-3.5" />
+              Open Wallet page
+            </button>
           </div>
           <p className="text-sm text-muted-foreground">Paste the bundle the holder sent back. The event payload and contract binding are re-read from the chain — never trusted from the bundle.</p>
           <textarea className={`${inputCls} h-32 resize-none`} placeholder='{"circuitId":"disclose_recipient","refE":{…},"proof":"0x…","rDisc":{…},"vTildeDisc":"0x…"}' value={bundleJson} onChange={(e) => setBundleJson(e.target.value)} />
-          <button onClick={verify} disabled={busy || !request || !bundleJson.trim()} className={`${btnCls} bg-cyan-700 text-white hover:bg-cyan-600`}>
-            {busy ? "Verifying…" : "Verify against chain"}
-          </button>
-          {!request && <p className="text-xs text-amber-400">Create a request first.</p>}
+          <div className="flex items-center gap-3">
+            <button onClick={verify} disabled={busy || !request || !bundleJson.trim()} className={`${btnCls} bg-cyan-700 text-white hover:bg-cyan-600`}>
+              {busy ? "Verifying…" : "Verify against chain"}
+            </button>
+            {bundleJson && (
+              <button onClick={copyBundle} className={`${btnCls} border border-border/60 text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2`}>
+                <Copy className="size-4" />
+                Copy bundle
+              </button>
+            )}
+          </div>
+          {!request && <p className="text-xs text-amber-400">Create a request first (Step 1).</p>}
+          <div className="rounded-xl border border-border/30 bg-white/[0.02] p-3">
+            <p className="text-xs text-muted-foreground flex items-start gap-2">
+              <Share2 className="size-3 mt-0.5 flex-shrink-0" />
+              <span><strong>Getting a bundle:</strong> Open your <a href="/wallet" target="_blank" className="text-primary hover:underline">Wallet page</a>, click <Share2 className="inline size-3" /> on any transfer, paste the Step 1 request, then copy the generated bundle back here.</span>
+            </p>
+          </div>
         </div>
 
         {/* Error */}

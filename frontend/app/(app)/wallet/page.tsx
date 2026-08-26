@@ -9,7 +9,8 @@ import { PageShell } from "@/components/page-shell";
 import { ErrorBox } from "@/components/error-box";
 import { LogPanel } from "@/components/log-panel";
 import { Addr } from "@/components/addr";
-import { ChevronDown, RefreshCw, Share2, X } from "lucide-react";
+import { ChevronDown, RefreshCw, Share2, X, Copy } from "lucide-react";
+import { toast } from "sonner";
 import type { TxPhase } from "@/lib/wallet";
 import type { ConfidentialEvent, TransferEvent, DisclosureRequest, DisclosureBundle } from "@ctd/sdk";
 
@@ -236,6 +237,15 @@ function TransferRow({ ev, wallet, address, log }: {
     finally { setProving(false); }
   }
 
+  const copyBundle = async () => {
+    if (!bundle) return;
+    await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+    log("Bundle copied to clipboard");
+    toast.success("Copied", {
+      description: "Disclosure bundle copied to clipboard",
+    });
+  };
+
   return (
     <li className="rounded-xl border border-border/40 bg-white/[0.02] p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -284,8 +294,9 @@ function TransferRow({ ev, wallet, address, log }: {
               <p className="text-xs text-emerald-400">Bundle ready — copy and send to the verifier.</p>
               <textarea readOnly value={JSON.stringify(bundle, null, 2)}
                 className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 font-mono text-xs resize-none h-32 outline-none" />
-              <button onClick={() => navigator.clipboard.writeText(JSON.stringify(bundle))}
-                className="rounded-xl border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all">
+              <button onClick={copyBundle}
+                className="rounded-xl border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all flex items-center gap-2">
+                <Copy className="size-3.5" />
                 Copy bundle
               </button>
             </div>

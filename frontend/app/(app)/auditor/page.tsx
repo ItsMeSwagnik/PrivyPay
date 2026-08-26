@@ -5,50 +5,83 @@ import { hybridFetchEvents, auditTransfer, auditWithdraw, auditorPublicKey, poin
 import { useActiveDeployment } from "@/lib/active-deployment";
 import { clientsFor } from "@/lib/rpc";
 import { errMsg } from "@/lib/err";
-import { stroopsToXlm } from "@/lib/format";
+import { stroopsToXlm, stroopsToXlmCompact } from "@/lib/format";
 import { PageShell } from "@/components/page-shell";
 import { ErrorBox } from "@/components/error-box";
 import { Addr } from "@/components/addr";
-import { Lock, Unlock } from "lucide-react";
+import { Lock, Unlock, Filter } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertTriangle } from "lucide-react";
 
 interface AuditRow { ev: ConfidentialEvent; text: string; amount: bigint | null; senderBalance: bigint | null; channelsAgree: boolean; type: string; }
-interface AccountView { address: string; spendable: bigint | null; receiving: bigint; lastLedger: number; }
+interface AccountView { address: string; spendable: bigint | null; receiving: bigint; lastLedger: number; decryptionFailed: boolean; hasDecryptedOps: boolean; }
 
 function replay(events: ConfidentialEvent[], sk: bigint | null) {
   const rows: AuditRow[] = [];
   const accounts = new Map<string, AccountView>();
-  const acct = (a: string) => { let v = accounts.get(a); if (!v) { v = { address: a, spendable: null, receiving: 0n, lastLedger: 0 }; accounts.set(a, v); } return v; };
+  const acct = (a: string) => { let v = accounts.get(a); if (!v) { v = { address: a, spendable: null, receiving: 0n, lastLedger: 0, decryptionFailed: false, hasDecryptedOps: false }; accounts.set(a, v); } return v; };
   const seen = (a: string, l: number) => { const v = acct(a); v.lastLedger = Math.max(v.lastLedger, l); return v; };
+
+  // Sanity check: balances should never exceed total XLM supply (~10^18 stroops)
+  const MAX_REASONABLE_BALANCE = BigInt("1000000000000000000"); // 100M XLM in stroops
+
   for (const ev of events) {
     switch (ev.type) {
       case "register": { const a = seen(ev.account, ev.ledger); a.spendable = 0n; rows.push({ ev, text: "registered", amount: null, senderBalance: null, channelsAgree: true, type: "register" }); break; }
       case "deposit": { const a = seen(ev.to, ev.ledger); a.receiving += ev.amount; rows.push({ ev, text: "deposit (public)", amount: ev.amount, senderBalance: null, channelsAgree: true, type: "deposit" }); break; }
       case "merge": { const a = seen(ev.account, ev.ledger); if (a.spendable !== null) a.spendable += a.receiving; a.receiving = 0n; rows.push({ ev, text: "merged receiving → spendable", amount: null, senderBalance: a.spendable, channelsAgree: true, type: "merge" }); break; }
-      case "withdraw": { 
-        const a = seen(ev.from, ev.ledger); 
+      case "withdraw": {
+        const a = seen(ev.from, ev.ledger);
         if (sk) {
-          const { senderBalance } = auditWithdraw(sk, ev); 
-          a.spendable = senderBalance; 
-          rows.push({ ev, text: "withdrawal — checkpoint decrypted", amount: ev.amount, senderBalance, channelsAgree: true, type: "withdraw" }); 
+          const { senderBalance } = auditWithdraw(sk, ev);
+          // Check if decrypted balance is suspicious
+          if (senderBalance > MAX_REASONABLE_BALANCE) {
+            a.decryptionFailed = true;
+            rows.push({ ev, text: "withdrawal — checkpoint decryption failed (invalid auditor key)", amount: ev.amount, senderBalance: null, channelsAgree: false, type: "withdraw" });
+          } else {
+            // Only update balance if we haven't seen a decryption failure yet
+            if (!a.decryptionFailed) {
+              a.spendable = senderBalance;
+              a.hasDecryptedOps = true;
+            }
+            rows.push({ ev, text: "withdrawal — checkpoint decrypted", amount: ev.amount, senderBalance, channelsAgree: true, type: "withdraw" });
+          }
         } else {
-          rows.push({ ev, text: "withdrawal", amount: ev.amount, senderBalance: null, channelsAgree: false, type: "withdraw" }); 
+          rows.push({ ev, text: "withdrawal", amount: ev.amount, senderBalance: null, channelsAgree: false, type: "withdraw" });
         }
-        break; 
+        break;
       }
-      case "transfer": { 
-        const from = seen(ev.from, ev.ledger); 
-        const to = seen(ev.to, ev.ledger); 
+      case "transfer": {
+        const from = seen(ev.from, ev.ledger);
+        const to = seen(ev.to, ev.ledger);
         if (sk) {
-          const d = auditTransfer(sk, ev); 
-          if (d.channelsAgree) { 
-            from.spendable = d.senderBalance; 
-            to.receiving += d.amount; 
-          } 
-          rows.push({ ev, text: d.channelsAgree ? "confidential transfer — decrypted" : "transfer did NOT decrypt under this key", amount: d.channelsAgree ? d.amount : null, senderBalance: d.channelsAgree ? d.senderBalance : null, channelsAgree: d.channelsAgree, type: "transfer" }); 
+          const d = auditTransfer(sk, ev);
+          if (d.channelsAgree) {
+            // Sanity check decrypted values
+            if (d.senderBalance > MAX_REASONABLE_BALANCE || d.amount > MAX_REASONABLE_BALANCE) {
+              from.decryptionFailed = true;
+              to.decryptionFailed = true;
+              rows.push({ ev, text: "transfer — decryption failed (invalid auditor key)", amount: null, senderBalance: null, channelsAgree: false, type: "transfer" });
+            } else {
+              if (!from.decryptionFailed) {
+                from.spendable = d.senderBalance;
+                from.hasDecryptedOps = true;
+              }
+              if (!to.decryptionFailed) {
+                to.receiving += d.amount;
+                to.hasDecryptedOps = true;
+              }
+              rows.push({ ev, text: "confidential transfer — decrypted", amount: d.amount, senderBalance: d.senderBalance, channelsAgree: d.channelsAgree, type: "transfer" });
+            }
+          } else {
+            from.decryptionFailed = true;
+            to.decryptionFailed = true;
+            rows.push({ ev, text: "transfer did NOT decrypt under this key", amount: null, senderBalance: null, channelsAgree: false, type: "transfer" });
+          }
         } else {
-          rows.push({ ev, text: "confidential transfer", amount: null, senderBalance: null, channelsAgree: false, type: "transfer" }); 
+          rows.push({ ev, text: "confidential transfer", amount: null, senderBalance: null, channelsAgree: false, type: "transfer" });
         }
-        break; 
+        break;
       }
     }
   }
@@ -74,6 +107,11 @@ export default function AuditorPage() {
   const [auditorKeyInput, setAuditorKeyInput] = useState("");
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showKeyInput, setShowKeyInput] = useState(false);
+
+  // Filter state for activity feed
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterAccount, setFilterAccount] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(false);
 
   const auditorSk = useMemo(() => {
     if (!isUnlocked || !auditorKeyInput) return null;
@@ -234,11 +272,41 @@ export default function AuditorPage() {
             <h2 className="font-medium">Accounts (auditor view)</h2>
             <button onClick={load} disabled={busy} className={btnCls}>{busy ? "Decrypting…" : "Reload"}</button>
           </div>
+          {accounts.some(a => a.decryptionFailed) && (
+            <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex items-start gap-3">
+              <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5" />
+              <div className="text-xs text-amber-200">
+                <p className="font-medium">Invalid auditor key detected</p>
+                <p className="text-amber-300/80">Some transactions could not be decrypted. Account balances are hidden until the correct key is provided.</p>
+              </div>
+            </div>
+          )}
           {accounts.length === 0 && !busy && <p className="text-sm text-muted-foreground">No accounts in the retention window.</p>}
           {accounts.length > 0 && (
             <table className="w-full text-left text-xs">
               <thead><tr className="text-muted-foreground border-b border-border/40"><th className="pb-2 font-normal">account</th><th className="pb-2 font-normal">spendable</th><th className="pb-2 font-normal">receiving</th><th className="pb-2 font-normal">ledger</th></tr></thead>
-              <tbody>{accounts.map((a) => (<tr key={a.address} className="border-b border-border/20"><td className="py-2"><Addr value={a.address} /></td><td className="py-2">{a.spendable === null ? "?" : `${stroopsToXlm(a.spendable)} XLM`}</td><td className="py-2">{stroopsToXlm(a.receiving)} XLM</td><td className="py-2 text-muted-foreground">{a.lastLedger}</td></tr>))}</tbody>
+              <tbody>{accounts.map((a) => {
+                return (
+                  <tr key={a.address} className="border-b border-border/20">
+                    <td className="py-2"><Addr value={a.address} /></td>
+                    <td className="py-2 font-mono">
+                      {a.decryptionFailed || a.spendable === null ? (
+                        <span className="text-muted-foreground">?</span>
+                      ) : (
+                        `${stroopsToXlmCompact(a.spendable, 4)} XLM`
+                      )}
+                    </td>
+                    <td className="py-2 font-mono">
+                      {a.decryptionFailed ? (
+                        <span className="text-muted-foreground">?</span>
+                      ) : (
+                        `${stroopsToXlmCompact(a.receiving, 4)} XLM`
+                      )}
+                    </td>
+                    <td className="py-2 text-muted-foreground">{a.lastLedger}</td>
+                  </tr>
+                );
+              })}</tbody>
             </table>
           )}
         </div>
@@ -246,47 +314,120 @@ export default function AuditorPage() {
 
       {/* Activity Feed - Always visible */}
       <div className="rounded-2xl border border-border/60 bg-card/40 p-5 backdrop-blur-sm">
-        <h2 className="mb-1 font-medium">
-          Transaction Activity {isUnlocked && <span className="text-xs text-muted-foreground font-normal">· decrypted</span>}
-        </h2>
-        <p className="mb-4 text-xs text-muted-foreground">
-          All token events, newest first. {!isUnlocked && "Confidential transfer amounts are encrypted."}
-          {isUnlocked && "Confidential transfer amounts decrypted with auditor key."}
-        </p>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="font-medium">
+              Transaction Activity {isUnlocked && <span className="text-xs text-muted-foreground font-normal">· decrypted</span>}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              All token events, newest first. {!isUnlocked && "Confidential transfer amounts are encrypted."}
+              {isUnlocked && "Confidential transfer amounts decrypted with auditor key."}
+            </p>
+          </div>
+          <button onClick={() => setShowFilters(!showFilters)} className={btnCls + " flex items-center gap-2"}>
+            <Filter className="h-3.5 w-3.5" />
+            Filter
+          </button>
+        </div>
+
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="mb-4 rounded-xl border border-border/40 bg-white/[0.02] p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filter by Type</label>
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="transfer">Transfers</SelectItem>
+                    <SelectItem value="deposit">Deposits</SelectItem>
+                    <SelectItem value="withdraw">Withdrawals</SelectItem>
+                    <SelectItem value="register">Registrations</SelectItem>
+                    <SelectItem value="merge">Merges</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Filter by Account</label>
+                <input
+                  type="text"
+                  value={filterAccount}
+                  onChange={(e) => setFilterAccount(e.target.value)}
+                  placeholder="Paste account address..."
+                  className="w-full rounded-lg border border-border/60 bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                />
+              </div>
+            </div>
+            {(filterType !== "all" || filterAccount !== "") && (
+              <button
+                onClick={() => { setFilterType("all"); setFilterAccount(""); }}
+                className="mt-3 text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+
         {!rows && busy && <p className="text-sm text-muted-foreground">Syncing events…</p>}
         {rows?.length === 0 && <p className="text-sm text-muted-foreground">No activity in the retention window.</p>}
         {rows && (
           <ul className="space-y-2">
-            {rows.map((row) => {
-              const ev = row.ev;
-              const parties = "from" in ev ? <><Addr value={ev.from} /> → <Addr value={ev.to} /></> : <Addr value={ev.account} />;
-              return (
-                <li key={ev.cursor} className="rounded-xl border border-border/40 bg-white/[0.02] p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${BADGE[ev.type] ?? BADGE.merge}`}>{ev.type}</span>
-                    <span className="text-xs text-muted-foreground">{parties}</span>
-                    <span className="flex-1" />
-                    {row.type === "transfer" && row.amount === null ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
-                        <Lock className="h-3 w-3" />
-                        Encrypted
-                      </span>
-                    ) : row.amount !== null ? (
-                      <span className="text-sm font-medium text-amber-400">{stroopsToXlm(row.amount)} XLM</span>
-                    ) : null}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {row.text}
-                    {row.senderBalance !== null && (
-                      <> · sender balance now <span className="text-foreground/80">{stroopsToXlm(row.senderBalance)} XLM</span></>
-                    )}
-                  </div>
-                  <div className="mt-1 font-mono text-[10px] text-muted-foreground/50">
-                    ledger {ev.ledger} · {ev.txHash.slice(0, 14)}…
-                  </div>
-                </li>
-              );
-            })}
+            {rows
+              .filter((row) => {
+                if (filterType !== "all" && row.type !== filterType) return false;
+                if (filterAccount) {
+                  const ev = row.ev;
+                  const accountMatch = "account" in ev ? ev.account === filterAccount : "from" in ev ? ev.from === filterAccount || ev.to === filterAccount : false;
+                  if (!accountMatch) return false;
+                }
+                return true;
+              })
+              .map((row) => {
+                const ev = row.ev;
+                const parties = "from" in ev ? <><Addr value={ev.from} /> → <Addr value={ev.to} /></> : <Addr value={ev.account} />;
+                return (
+                  <li key={ev.cursor} className="rounded-xl border border-border/40 bg-white/[0.02] p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${BADGE[ev.type] ?? BADGE.merge}`}>{ev.type}</span>
+                      <span className="text-xs text-muted-foreground">{parties}</span>
+                      <span className="flex-1" />
+                      {row.type === "transfer" && row.amount === null ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                          <Lock className="h-3 w-3" />
+                          Encrypted
+                        </span>
+                      ) : row.amount !== null ? (
+                        <span className="text-sm font-medium text-amber-400">{stroopsToXlmCompact(row.amount, 4)} XLM</span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {row.type === "transfer" && row.amount === null && row.channelsAgree === false ? (
+                        <span className="inline-flex items-center gap-1.5 text-destructive">
+                          <AlertTriangle className="h-3 w-3" />
+                          decryption failed (invalid auditor key)
+                        </span>
+                      ) : row.type === "withdraw" && row.senderBalance === null && row.channelsAgree === false ? (
+                        <span className="inline-flex items-center gap-1.5 text-destructive">
+                          <AlertTriangle className="h-3 w-3" />
+                          checkpoint decryption failed (invalid auditor key)
+                        </span>
+                      ) : (
+                        row.text
+                      )}
+                      {row.type === "withdraw" && row.senderBalance !== null && (
+                        <> · sender balance now <span className="text-foreground/80">{stroopsToXlmCompact(row.senderBalance, 4)} XLM</span></>
+                      )}
+                    </div>
+                    <div className="mt-1 font-mono text-[10px] text-muted-foreground/50">
+                      ledger {ev.ledger} · {ev.txHash.slice(0, 14)}…
+                    </div>
+                  </li>
+                );
+              })}
           </ul>
         )}
       </div>

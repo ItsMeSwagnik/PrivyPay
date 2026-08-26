@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/react"
 import "./globals.css"
 import { ActiveDeploymentProvider } from "@/lib/active-deployment"
 import { WalletProvider } from "@/lib/wallet-context"
+import { Toaster } from "@/components/ui/sonner"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <WalletProvider>
             {children}
             <Analytics />
+            <Toaster position="bottom-right" expand={true} duration={3000} />
           </WalletProvider>
         </ActiveDeploymentProvider>
       </body>
