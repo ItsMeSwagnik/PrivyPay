@@ -43,9 +43,7 @@ export function AppNav() {
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 lg:px-10">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 mr-2 shrink-0">
-          <span className="grid size-9 place-items-center rounded-xl border border-primary/40 bg-primary/15 text-primary shadow-lg shadow-primary/10">
-            <svg viewBox="0 0 32 32" className="size-5" fill="none" aria-hidden="true"><path d="M16 3.5 27.5 10v12L16 28.5 4.5 22V10L16 3.5Z" stroke="currentColor" strokeWidth="1.75"/><path d="m10 16 4 4 8-9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
-          </span>
+          <img src="/PrivyPay logo.png" alt="PrivyPay" className="h-11 w-auto object-contain" />
           <span className="font-mono text-sm font-semibold tracking-[0.28em] hidden sm:block">PRIVYPAY</span>
         </Link>
 

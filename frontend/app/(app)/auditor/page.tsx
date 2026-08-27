@@ -12,6 +12,8 @@ import { Addr } from "@/components/addr";
 import { Lock, Unlock, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 interface AuditRow { ev: ConfidentialEvent; text: string; amount: bigint | null; senderBalance: bigint | null; channelsAgree: boolean; type: string; }
 interface AccountView { address: string; spendable: bigint | null; receiving: bigint; lastLedger: number; decryptionFailed: boolean; hasDecryptedOps: boolean; }
@@ -113,6 +115,12 @@ export default function AuditorPage() {
   const [filterAccount, setFilterAccount] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => { setCurrentPage(1); }, [filterType, filterAccount]);
+  const ITEMS_PER_PAGE = 15;
+
   const auditorSk = useMemo(() => {
     if (!isUnlocked || !auditorKeyInput) return null;
     try {
@@ -173,6 +181,7 @@ export default function AuditorPage() {
       subtitle="Compliance view — confidential transfer amounts are encrypted by default. Enter the auditor key to decrypt." 
       badge="Compliance"
     >
+      <div className="space-y-5">
       {error && <ErrorBox className="mb-6">{error}</ErrorBox>}
       
       {/* Auditor Key Input Section */}
@@ -272,42 +281,58 @@ export default function AuditorPage() {
             <h2 className="font-medium">Accounts (auditor view)</h2>
             <button onClick={load} disabled={busy} className={btnCls}>{busy ? "Decrypting…" : "Reload"}</button>
           </div>
-          {accounts.some(a => a.decryptionFailed) && (
-            <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex items-start gap-3">
-              <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5" />
-              <div className="text-xs text-amber-200">
-                <p className="font-medium">Invalid auditor key detected</p>
-                <p className="text-amber-300/80">Some transactions could not be decrypted. Account balances are hidden until the correct key is provided.</p>
-              </div>
+          {busy ? (
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-48" />
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex gap-4 border-b border-border/20 pb-2">
+                  <Skeleton className="h-4 w-64" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+              ))}
             </div>
-          )}
-          {accounts.length === 0 && !busy && <p className="text-sm text-muted-foreground">No accounts in the retention window.</p>}
-          {accounts.length > 0 && (
-            <table className="w-full text-left text-xs">
-              <thead><tr className="text-muted-foreground border-b border-border/40"><th className="pb-2 font-normal">account</th><th className="pb-2 font-normal">spendable</th><th className="pb-2 font-normal">receiving</th><th className="pb-2 font-normal">ledger</th></tr></thead>
-              <tbody>{accounts.map((a) => {
-                return (
-                  <tr key={a.address} className="border-b border-border/20">
-                    <td className="py-2"><Addr value={a.address} /></td>
-                    <td className="py-2 font-mono">
-                      {a.decryptionFailed || a.spendable === null ? (
-                        <span className="text-muted-foreground">?</span>
-                      ) : (
-                        `${stroopsToXlmCompact(a.spendable, 4)} XLM`
-                      )}
-                    </td>
-                    <td className="py-2 font-mono">
-                      {a.decryptionFailed ? (
-                        <span className="text-muted-foreground">?</span>
-                      ) : (
-                        `${stroopsToXlmCompact(a.receiving, 4)} XLM`
-                      )}
-                    </td>
-                    <td className="py-2 text-muted-foreground">{a.lastLedger}</td>
-                  </tr>
-                );
-              })}</tbody>
-            </table>
+          ) : (
+            <>
+              {accounts.some(a => a.decryptionFailed) && (
+                <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex items-start gap-3">
+                  <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5" />
+                  <div className="text-xs text-amber-200">
+                    <p className="font-medium">Invalid auditor key detected</p>
+                    <p className="text-amber-300/80">Some transactions could not be decrypted. Account balances are hidden until the correct key is provided.</p>
+                  </div>
+                </div>
+              )}
+              {accounts.length === 0 && !busy && <p className="text-sm text-muted-foreground">No accounts in the retention window.</p>}
+              {accounts.length > 0 && (
+                <table className="w-full text-left text-xs">
+                  <thead><tr className="text-muted-foreground border-b border-border/40"><th className="pb-2 font-normal">account</th><th className="pb-2 font-normal">spendable</th><th className="pb-2 font-normal">receiving</th><th className="pb-2 font-normal">ledger</th></tr></thead>
+                  <tbody>{accounts.map((a) => {
+                    return (
+                      <tr key={a.address} className="border-b border-border/20">
+                        <td className="py-2"><Addr value={a.address} /></td>
+                        <td className="py-2 font-mono">
+                          {a.decryptionFailed || a.spendable === null ? (
+                            <span className="text-muted-foreground">?</span>
+                          ) : (
+                            `${stroopsToXlmCompact(a.spendable, 4)} XLM`
+                          )}
+                        </td>
+                        <td className="py-2 font-mono">
+                          {a.decryptionFailed ? (
+                            <span className="text-muted-foreground">?</span>
+                          ) : (
+                            `${stroopsToXlmCompact(a.receiving, 4)} XLM`
+                          )}
+                        </td>
+                        <td className="py-2 text-muted-foreground">{a.lastLedger}</td>
+                      </tr>
+                    );
+                  })}</tbody>
+                </table>
+              )}
+            </>
           )}
         </div>
       )}
@@ -372,64 +397,117 @@ export default function AuditorPage() {
           </div>
         )}
 
-        {!rows && busy && <p className="text-sm text-muted-foreground">Syncing events…</p>}
-        {rows?.length === 0 && <p className="text-sm text-muted-foreground">No activity in the retention window.</p>}
-        {rows && (
+        {busy ? (
           <ul className="space-y-2">
-            {rows
-              .filter((row) => {
-                if (filterType !== "all" && row.type !== filterType) return false;
-                if (filterAccount) {
-                  const ev = row.ev;
-                  const accountMatch = "account" in ev ? ev.account === filterAccount : "from" in ev ? ev.from === filterAccount || ev.to === filterAccount : false;
-                  if (!accountMatch) return false;
-                }
-                return true;
-              })
-              .map((row) => {
-                const ev = row.ev;
-                const parties = "from" in ev ? <><Addr value={ev.from} /> → <Addr value={ev.to} /></> : <Addr value={ev.account} />;
-                return (
-                  <li key={ev.cursor} className="rounded-xl border border-border/40 bg-white/[0.02] p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${BADGE[ev.type] ?? BADGE.merge}`}>{ev.type}</span>
-                      <span className="text-xs text-muted-foreground">{parties}</span>
-                      <span className="flex-1" />
-                      {row.type === "transfer" && row.amount === null ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
-                          <Lock className="h-3 w-3" />
-                          Encrypted
-                        </span>
-                      ) : row.amount !== null ? (
-                        <span className="text-sm font-medium text-amber-400">{stroopsToXlmCompact(row.amount, 4)} XLM</span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {row.type === "transfer" && row.amount === null && row.channelsAgree === false ? (
-                        <span className="inline-flex items-center gap-1.5 text-destructive">
-                          <AlertTriangle className="h-3 w-3" />
-                          decryption failed (invalid auditor key)
-                        </span>
-                      ) : row.type === "withdraw" && row.senderBalance === null && row.channelsAgree === false ? (
-                        <span className="inline-flex items-center gap-1.5 text-destructive">
-                          <AlertTriangle className="h-3 w-3" />
-                          checkpoint decryption failed (invalid auditor key)
-                        </span>
-                      ) : (
-                        row.text
-                      )}
-                      {row.type === "withdraw" && row.senderBalance !== null && (
-                        <> · sender balance now <span className="text-foreground/80">{stroopsToXlmCompact(row.senderBalance, 4)} XLM</span></>
-                      )}
-                    </div>
-                    <div className="mt-1 font-mono text-[10px] text-muted-foreground/50">
-                      ledger {ev.ledger} · {ev.txHash.slice(0, 14)}…
-                    </div>
-                  </li>
-                );
-              })}
+            {[...Array(8)].map((_, i) => (
+              <li key={i} className="rounded-xl border border-border/40 bg-white/[0.02] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-64" />
+                  <span className="flex-1" />
+                  <Skeleton className="h-5 w-24" />
+                </div>
+                <div className="mt-1">
+                  <Skeleton className="h-3 w-48" />
+                </div>
+                <div className="mt-1">
+                  <Skeleton className="h-3 w-32" />
+                </div>
+              </li>
+            ))}
           </ul>
-        )}
+        ) : (!rows && busy && <p className="text-sm text-muted-foreground">Syncing events…</p>)}
+        {!busy && rows?.length === 0 && <p className="text-sm text-muted-foreground">No activity in the retention window.</p>}
+        {!busy && rows && (() => {
+          const filteredRows = rows.filter((row) => {
+            if (filterType !== "all" && row.type !== filterType) return false;
+            if (filterAccount) {
+              const ev = row.ev;
+              const accountMatch = "account" in ev ? ev.account === filterAccount : "from" in ev ? ev.from === filterAccount || ev.to === filterAccount : false;
+              if (!accountMatch) return false;
+            }
+            return true;
+          });
+          const totalPages = Math.ceil(filteredRows.length / ITEMS_PER_PAGE);
+          return (
+          <>
+            <ul className="space-y-2">
+              {filteredRows
+                .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                .map((row) => {
+                  const ev = row.ev;
+                  const parties = "from" in ev ? <><Addr value={ev.from} /> → <Addr value={ev.to} /></> : <Addr value={ev.account} />;
+                  return (
+                    <li key={ev.cursor} className="rounded-xl border border-border/40 bg-white/[0.02] p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${BADGE[ev.type] ?? BADGE.merge}`}>{ev.type}</span>
+                        <span className="text-xs text-muted-foreground">{parties}</span>
+                        <span className="flex-1" />
+                        {row.type === "transfer" && row.amount === null ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                            <Lock className="h-3 w-3" />
+                            Encrypted
+                          </span>
+                        ) : row.amount !== null ? (
+                          <span className="text-sm font-medium text-amber-400">{stroopsToXlmCompact(row.amount, 4)} XLM</span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {row.type === "transfer" && row.amount === null && row.channelsAgree === false ? (
+                          <span className="inline-flex items-center gap-1.5 text-destructive">
+                            <AlertTriangle className="h-3 w-3" />
+                            decryption failed (invalid auditor key)
+                          </span>
+                        ) : row.type === "withdraw" && row.senderBalance === null && row.channelsAgree === false ? (
+                          <span className="inline-flex items-center gap-1.5 text-destructive">
+                            <AlertTriangle className="h-3 w-3" />
+                            checkpoint decryption failed (invalid auditor key)
+                          </span>
+                        ) : (
+                          row.text
+                        )}
+                        {row.type === "withdraw" && row.senderBalance !== null && (
+                          <> · sender balance now <span className="text-foreground/80">{stroopsToXlmCompact(row.senderBalance, 4)} XLM</span></>
+                        )}
+                      </div>
+                      <div className="mt-1 font-mono text-[10px] text-muted-foreground/50">
+                        ledger {ev.ledger} · {ev.txHash.slice(0, 14)}…
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+            {filteredRows.length > ITEMS_PER_PAGE && (
+              <Pagination className="mt-4">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => { e.preventDefault(); setCurrentPage((p) => Math.max(1, p - 1)); }}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  {[...Array(totalPages)].map((_, i) => (
+                    <PaginationItem key={i}>
+                      <PaginationLink href="#" onClick={(e) => { e.preventDefault(); setCurrentPage(i + 1); }} isActive={currentPage === i + 1}>
+                        {i + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => { e.preventDefault(); setCurrentPage((p) => Math.min(totalPages, p + 1)); }}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </>
+          );
+        })()}
+      </div>
       </div>
     </PageShell>
   );

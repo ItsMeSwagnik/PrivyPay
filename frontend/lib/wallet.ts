@@ -24,6 +24,9 @@ import {
   submitWithdraw,
   submitTransfer,
   encodeTransferData,
+  encryptAmount,
+  pointToBytes,
+  pointFromBytes,
   type IndexerClient,
   hybridFetchEvents,
   proveRecipientDisclosure,
@@ -304,6 +307,33 @@ export class ConfidentialWallet {
     if (!recipient) throw new Error("transfer recipient has no confidential account record");
     this.log("proving disclosure (D-sender)…");
     return proveSenderDisclosure({ keys: this.keys, rEScalar, event, pvkB: recipient.viewingPublicKey, request, prover: this.prover("disclose_sender") });
+  }
+
+  /** Encrypt a requested invoice amount to the buyer's viewing public key.
+   * Returns `{ ciphertext, ephemeralPub }` — both as hex strings for the shareable token.
+   * Only the buyer (holder of the matching vk) can decrypt it. */
+  async invoiceEncryptAmount(buyerAddress: string, amountStroops: bigint): Promise<{ ciphertext: string; ephemeralPub: string }> {
+    const buyerAccount = await this.client.confidentialBalance(buyerAddress);
+    if (!buyerAccount) throw new Error("buyer is not registered for confidential transfers");
+    const ephSk = (() => { const r = crypto.getRandomValues(new Uint8Array(32)); let v = 0n; for (const b of r) v = (v << 8n) | BigInt(b); return v % (BigInt("0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001")); })();
+    const ephPub = scalarMul(ephSk, H);
+    const shared = ecdh(ephSk, buyerAccount.viewingPublicKey);
+    const sigma = pointCoords(ephPub).x;
+    const ciphertext = encryptAmount(amountStroops, shared, sigma);
+    const ephPubBytes = pointToBytes(ephPub);
+    const ephPubHex = Array.from(ephPubBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+    return { ciphertext: toHex32(ciphertext), ephemeralPub: ephPubHex };
+  }
+
+  /** Decrypt an invoice amount encrypted by the supplier to this wallet's viewing key. */
+  async invoiceDecryptAmount(ciphertextHex: string, ephemeralPubHex: string): Promise<bigint> {
+    const ephPubBytes = new Uint8Array(ephemeralPubHex.match(/.{2}/g)!.map(h => parseInt(h, 16)));
+    const ephPub = pointFromBytes(ephPubBytes);
+    const shared = ecdh(this.keys.vk, ephPub);
+    const sigma = pointCoords(ephPub).x;
+    const amount = decryptWithDomain(fromHex(ciphertextHex), DOMAIN.TX_AMOUNT, shared, sigma);
+    if (amount >= 1n << 127n) throw new Error("decryption failed — wrong key or corrupted token");
+    return amount;
   }
 
   async invoiceCreate(buyer: string, supplier: string, memo: string): Promise<bigint> {

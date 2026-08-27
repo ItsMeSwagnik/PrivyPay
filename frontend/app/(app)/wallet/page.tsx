@@ -11,6 +11,8 @@ import { LogPanel } from "@/components/log-panel";
 import { Addr } from "@/components/addr";
 import { ChevronDown, RefreshCw, Share2, X, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import type { TxPhase } from "@/lib/wallet";
 import type { ConfidentialEvent, TransferEvent, DisclosureRequest, DisclosureBundle } from "@ctd/sdk";
 
@@ -38,6 +40,8 @@ export default function WalletPage() {
   const [transferAmt, setTransferAmt] = useState("5");
   const [events, setEvents] = useState<ConfidentialEvent[] | null>(null);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     if (!wallet || recipientsLoaded) return;
@@ -97,7 +101,7 @@ export default function WalletPage() {
       ) : (
         <div className="space-y-5">
           {/* Balance card */}
-          {view && (
+          {view ? (
             <div className="rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm">
               <div className="mb-5 flex items-center justify-between">
                 <Addr value={view.address} className="text-xs text-muted-foreground" />
@@ -136,6 +140,26 @@ export default function WalletPage() {
                 </div>
               )}
             </div>
+          ) : wallet && (
+            <div className="rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm">
+              <div className="mb-5 flex items-center justify-between">
+                <Skeleton className="h-4 w-32" />
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-24 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-xl border border-border/50 bg-background/30 p-4">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="mt-2 h-8 w-32" />
+                </div>
+                <div className="rounded-xl border border-border/50 bg-background/30 p-4">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="mt-2 h-8 w-32" />
+                </div>
+              </div>
+            </div>
           )}
 
           {view?.registered && (
@@ -170,7 +194,11 @@ export default function WalletPage() {
                     transferAmt={transferAmt} setTransferAmt={setTransferAmt}
                     busy={busy} phase={phase} phaseLabel={phaseLabel}
                     onReload={reloadRecipients}
-                    onSend={run("transfer", () => wallet.transfer(transferTo, xlmToStroops(transferAmt), setPhase))}
+                    selfAddress={wallet.address}
+                    onSend={run("transfer", () => {
+                      if (transferTo === wallet.address) throw new Error("Cannot transfer to your own wallet.");
+                      return wallet.transfer(transferTo, xlmToStroops(transferAmt), setPhase);
+                    })}
                   />
                 )}
                 {tab === "merge" && (
@@ -196,16 +224,76 @@ export default function WalletPage() {
                 </button>
               </div>
 
-              {eventsLoading && <p className="text-sm text-muted-foreground">Loading events…</p>}
+              {eventsLoading && (
+                <ul className="space-y-2">
+                  {[...Array(5)].map((_, i) => (
+                    <li key={i} className="rounded-xl border border-border/40 bg-white/[0.02] p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                        <Skeleton className="h-4 w-48" />
+                        <span className="flex-1" />
+                        <Skeleton className="h-5 w-20" />
+                      </div>
+                      <div className="mt-1">
+                        <Skeleton className="h-3 w-32" />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {!eventsLoading && transferEvents.length === 0 && (
                 <p className="text-sm text-muted-foreground">No transfers yet.</p>
               )}
-              {transferEvents.length > 0 && (
-                <ul className="space-y-2">
-                  {transferEvents.map((ev) => (
-                    <TransferRow key={ev.cursor} ev={ev} wallet={wallet} address={view.address} log={log} />
-                  ))}
-                </ul>
+              {!eventsLoading && transferEvents.length > 0 && (
+                <>
+                  <ul className="space-y-2">
+                    {transferEvents
+                      .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                      .map((ev) => (
+                        <TransferRow key={ev.cursor} ev={ev} wallet={wallet} address={view.address} log={log} />
+                      ))}
+                  </ul>
+                  {transferEvents.length > ITEMS_PER_PAGE && (
+                    <Pagination className="mt-4">
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage((p) => Math.max(1, p - 1));
+                            }}
+                            className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                        {[...Array(Math.ceil(transferEvents.length / ITEMS_PER_PAGE))].map((_, i) => (
+                          <PaginationItem key={i}>
+                            <PaginationLink
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setCurrentPage(i + 1);
+                              }}
+                              isActive={currentPage === i + 1}
+                            >
+                              {i + 1}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage((p) => Math.min(Math.ceil(transferEvents.length / ITEMS_PER_PAGE), p + 1));
+                            }}
+                            className={currentPage === Math.ceil(transferEvents.length / ITEMS_PER_PAGE) ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -323,12 +411,13 @@ function TransferTab({
   transferAmt, setTransferAmt, busy, phase, phaseLabel, onReload, onSend,
 }: {
   inputCls: string; btnCls: string; btnColor: string;
-  recipients: string[]; transferTo: string; setTransferTo: (v: string) => void;
+  selfAddress: string; recipients: string[]; transferTo: string; setTransferTo: (v: string) => void;
   transferAmt: string; setTransferAmt: (v: string) => void;
   busy: string | null; phase: TxPhase | null;
   phaseLabel: (p: TxPhase | null) => string;
   onReload: () => void; onSend: () => void;
 }) {
+  const filteredRecipients = recipients.filter((r) => r !== selfAddress);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -342,22 +431,22 @@ function TransferTab({
   }, [open]);
 
   const selected = transferTo;
-  const label = selected ? truncateAddr(selected, 10, 8) : recipients.length === 0 ? "No registered accounts" : "Select recipient…";
+  const label = selected ? truncateAddr(selected, 10, 8) : filteredRecipients.length === 0 ? "No registered accounts" : "Select recipient…";
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">Send confidentially — amount stays private on-chain.</p>
       <div className="flex gap-2">
         <div ref={ref} className="relative flex-1">
-          <button type="button" onClick={() => recipients.length > 0 && setOpen((o) => !o)}
-            className={`flex w-full items-center justify-between rounded-xl border px-4 py-2.5 text-sm transition-all ${open ? "border-primary/60 bg-white/5" : "border-border/60 bg-white/5 hover:border-border"} ${recipients.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+          <button type="button" onClick={() => filteredRecipients.length > 0 && setOpen((o) => !o)}
+            className={`flex w-full items-center justify-between rounded-xl border px-4 py-2.5 text-sm transition-all ${open ? "border-primary/60 bg-white/5" : "border-border/60 bg-white/5 hover:border-border"} ${filteredRecipients.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
             <span className={`font-mono text-xs ${selected ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
             <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
           {open && (
             <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-border/60 bg-[oklch(0.16_0.035_264)] shadow-2xl shadow-black/60 backdrop-blur-xl">
               <div className="max-h-52 overflow-y-auto">
-                {recipients.map((r) => (
+                {filteredRecipients.map((r) => (
                   <button key={r} type="button" onClick={() => { setTransferTo(r); setOpen(false); }}
                     className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 ${r === selected ? "bg-primary/10" : ""}`}>
                     <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary">{r.slice(0, 2)}</span>
@@ -377,7 +466,7 @@ function TransferTab({
           <RefreshCw className="size-4" />
         </button>
       </div>
-      {recipients.length === 0 && <p className="text-xs text-muted-foreground">No registered accounts found. Ask the recipient to register first, then click refresh.</p>}
+      {filteredRecipients.length === 0 && <p className="text-xs text-muted-foreground">No registered accounts found. Ask the recipient to register first, then click refresh.</p>}
       <div className="relative">
         <input className={inputCls} value={transferAmt} onChange={(e) => setTransferAmt(e.target.value)} placeholder="Amount" />
         <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-muted-foreground">XLM</span>

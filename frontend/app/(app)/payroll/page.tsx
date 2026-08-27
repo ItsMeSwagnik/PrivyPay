@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useWallet } from "@/lib/wallet-context";
 import { errMsg } from "@/lib/err";
 import { xlmToStroops, stroopsToXlm } from "@/lib/format";
@@ -31,6 +31,8 @@ export default function PayrollPage() {
     if (!wallet) return;
     const valid = entries.filter((e) => e.recipient.trim() && e.amount.trim());
     if (!valid.length) { setError("Add at least one recipient with an amount."); return; }
+    const selfPay = valid.find((e) => e.recipient.trim() === wallet.address);
+    if (selfPay) { setError(`"${selfPay.label}" has your own wallet address as recipient.`); return; }
     setError(null);
     setBusy(true);
     try {
