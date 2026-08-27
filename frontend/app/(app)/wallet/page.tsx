@@ -101,11 +101,21 @@ export default function WalletPage() {
             <div className="rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm">
               <div className="mb-5 flex items-center justify-between">
                 <Addr value={view.address} className="text-xs text-muted-foreground" />
-                {view.matchesChain !== null && (
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs ${view.matchesChain ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
-                    {view.matchesChain ? "verified ✓" : "mismatch ✗"}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {view.publicBalance !== null && (
+                    <span className="rounded-full px-2.5 py-0.5 text-xs bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                      {view.publicBalance} XLM public
+                    </span>
+                  )}
+                  <button onClick={refreshView} disabled={busy !== null} className="rounded-lg border border-border/60 p-1.5 text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50" title="Refresh balance">
+                    <RefreshCw className="size-3.5" />
+                  </button>
+                  {view.matchesChain !== null && (
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs ${view.matchesChain ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+                      {view.matchesChain ? "verified ✓" : "mismatch ✗"}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-xl border border-border/50 bg-background/30 p-4">

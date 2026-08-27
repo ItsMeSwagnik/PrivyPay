@@ -46,7 +46,7 @@ import transferCircuit from "@ctd/sdk/circuits/transfer.json";
 import discloseRecipientCircuit from "@ctd/disclosure/artifacts/disclose_recipient.json";
 import discloseSenderCircuit from "@ctd/disclosure/artifacts/disclose_sender.json";
 
-import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { Address, nativeToScVal, xdr, Horizon, Networks } from "@stellar/stellar-sdk";
 import type { Deployment } from "./deployment";
 import { connectFreighter } from "./freighter";
 import { keyDerivationMessage, skFromSignature } from "./derive-key";
@@ -82,6 +82,7 @@ export interface WalletView {
   receiving: bigint;
   syncedLedger: number;
   matchesChain: boolean | null;
+  publicBalance: string | null;
 }
 
 export class ConfidentialWallet {
@@ -146,6 +147,22 @@ export class ConfidentialWallet {
 
   async account(): Promise<OnChainAccount | null> {
     return this.client.confidentialBalance(this.address);
+  }
+
+  async getPublicBalance(): Promise<string | null> {
+    try {
+      // Use Horizon API (not Soroban RPC) for account balance queries
+      const horizonUrl = this.client.cfg.networkPassphrase === Networks.TESTNET
+        ? "https://horizon-testnet.stellar.org"
+        : "https://horizon.stellar.org";
+      const server = new Horizon.Server(horizonUrl);
+      const account = await server.accounts().accountId(this.address).call();
+      const xlmBalance = account.balances.find((b) => b.asset_type === "native");
+      return xlmBalance ? xlmBalance.balance : null;
+    } catch (e) {
+      console.error("Failed to fetch public balance:", e);
+      return null;
+    }
   }
 
   async register(onPhase?: (p: TxPhase) => void): Promise<void> {
@@ -397,6 +414,7 @@ export class ConfidentialWallet {
     const onchain = await this.account();
     let matchesChain: boolean | null = null;
     if (onchain) matchesChain = (await this.engine.verifyAgainstChain()).ok;
+    const publicBalance = await this.getPublicBalance();
     return {
       address: this.address,
       registered: onchain !== null,
@@ -404,6 +422,7 @@ export class ConfidentialWallet {
       receiving: state.receiving.v,
       syncedLedger: state.syncedLedger,
       matchesChain,
+      publicBalance,
     };
   }
 }
