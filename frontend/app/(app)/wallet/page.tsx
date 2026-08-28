@@ -51,7 +51,7 @@ export default function WalletPage() {
   const loadEvents = useCallback(async () => {
     if (!wallet) return;
     setEventsLoading(true);
-    try { setEvents(await wallet.listEvents()); } catch { /* silent */ }
+    try { setEvents(await wallet.listEvents()); setCurrentPage(1); } catch { /* silent */ }
     finally { setEventsLoading(false); }
   }, [wallet]);
 
