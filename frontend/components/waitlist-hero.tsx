@@ -312,7 +312,7 @@ function UserGuide() {
       <Reveal delay={0.2}>
         <div className="mt-10 rounded-2xl border border-border/60 bg-card/40 p-6 backdrop-blur-sm">
           <p className="mb-5 font-mono text-[10px] uppercase tracking-[0.2em] text-primary">Recommended first-time flow</p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden sm:flex flex-wrap items-center gap-2">
             {[
               { label: "Install Freighter", sub: "browser extension" },
               { label: "Connect wallet", sub: "Wallet page" },
@@ -335,9 +335,235 @@ function UserGuide() {
               </div>
             ))}
           </div>
+          <div className="sm:hidden grid grid-cols-1 gap-2">
+            {[
+              { label: "Install Freighter", sub: "browser extension" },
+              { label: "Connect wallet", sub: "Wallet page" },
+              { label: "Register", sub: "one-time ZK proof" },
+              { label: "Deposit XLM", sub: "public → shielded" },
+              { label: "Merge", sub: "receiving → spendable" },
+              { label: "Transfer", sub: "private on-chain" },
+              { label: "Verify", sub: "selective disclosure" },
+            ].map((step, i) => (
+              <div key={step.label} className="flex items-center gap-3">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary border border-primary/20">{i + 1}</span>
+                <div className="flex-1 rounded-xl border border-border/60 bg-background/30 px-4 py-2.5 flex items-center justify-between">
+                  <p className="text-xs font-medium">{step.label}</p>
+                  <p className="text-[10px] text-muted-foreground">{step.sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </Reveal>
     </section>
+  )
+}
+
+const TREASURY_TABS = [
+  {
+    id: "overview",
+    label: "Overview",
+    balance: "248,920.40",
+    sub: "Available balance",
+    points: [
+      { x: 0,   y: 63, label: "Jan", value: "$201,200" },
+      { x: 57,  y: 53, label: "Feb", value: "$214,800" },
+      { x: 114, y: 49, label: "Mar", value: "$219,400" },
+      { x: 171, y: 44, label: "Apr", value: "$226,100" },
+      { x: 228, y: 35, label: "May", value: "$234,700" },
+      { x: 285, y: 20, label: "Jun", value: "$241,300" },
+      { x: 342, y: 11, label: "Jul", value: "$246,900" },
+      { x: 400, y: 4,  label: "Aug", value: "$248,920" },
+    ],
+    stats: [
+      { label: "Next payroll", value: "86,240.00", note: "Encrypted until settlement", noteColor: "text-accent" },
+      { label: "Counterparties", value: "24 private", note: "Zero exposed balances", noteColor: "text-muted-foreground" },
+    ],
+  },
+  {
+    id: "payroll",
+    label: "Payroll",
+    balance: "86,240.00",
+    sub: "Next payroll batch",
+    points: [
+      { x: 0,   y: 40, label: "Week 1", value: "$72,000" },
+      { x: 57,  y: 28, label: "Week 2", value: "$74,500" },
+      { x: 114, y: 20, label: "Week 3", value: "$78,200" },
+      { x: 171, y: 15, label: "Week 4", value: "$80,100" },
+      { x: 228, y: 10, label: "Week 5", value: "$82,400" },
+      { x: 285, y: 7,  label: "Week 6", value: "$84,100" },
+      { x: 342, y: 4,  label: "Week 7", value: "$85,600" },
+      { x: 400, y: 2,  label: "Week 8", value: "$86,240" },
+    ],
+    stats: [
+      { label: "Recipients", value: "12 employees", note: "Amounts shielded per leg", noteColor: "text-accent" },
+      { label: "Status", value: "Scheduled", note: "Runs automatically", noteColor: "text-muted-foreground" },
+    ],
+  },
+  {
+    id: "invoices",
+    label: "Invoices",
+    balance: "34,500.00",
+    sub: "Outstanding invoices",
+    points: [
+      { x: 0,   y: 70, label: "Jan", value: "$8,200" },
+      { x: 57,  y: 58, label: "Feb", value: "$12,400" },
+      { x: 114, y: 48, label: "Mar", value: "$16,800" },
+      { x: 171, y: 38, label: "Apr", value: "$21,300" },
+      { x: 228, y: 28, label: "May", value: "$26,700" },
+      { x: 285, y: 18, label: "Jun", value: "$29,900" },
+      { x: 342, y: 9,  label: "Jul", value: "$32,100" },
+      { x: 400, y: 3,  label: "Aug", value: "$34,500" },
+    ],
+    stats: [
+      { label: "Open", value: "3 invoices", note: "Awaiting payment", noteColor: "text-amber-400" },
+      { label: "Paid this month", value: "7 invoices", note: "Amounts confidential", noteColor: "text-muted-foreground" },
+    ],
+  },
+]
+
+function buildPath(points: { x: number; y: number }[]): string {
+  if (points.length < 2) return ""
+  let d = `M${points[0].x} ${points[0].y}`
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1]
+    const curr = points[i]
+    const cpx = (prev.x + curr.x) / 2
+    d += ` C${cpx} ${prev.y} ${cpx} ${curr.y} ${curr.x} ${curr.y}`
+  }
+  return d
+}
+
+function InteractiveChart({ points }: { points: { x: number; y: number; label: string; value: string }[] }) {
+  const [active, setActive] = useState<number | null>(null)
+  const path = buildPath(points)
+  const fill = `${path} V80 H0Z`
+  const ap = active !== null ? points[active] : null
+
+  return (
+    <div className="relative mt-6 h-20">
+      <svg
+        viewBox="0 0 400 80"
+        className="h-full w-full cursor-crosshair"
+        aria-label="Balance trend"
+        onMouseLeave={() => setActive(null)}
+      >
+        {/* fill area */}
+        <path d={fill} className="fill-primary/10" />
+        {/* line */}
+        <path d={path} fill="none" stroke="currentColor" strokeWidth="2" className="text-primary" />
+        {/* vertical rule on active */}
+        {ap && (
+          <line
+            x1={ap.x} y1={0} x2={ap.x} y2={80}
+            stroke="currentColor"
+            strokeWidth="1"
+            strokeDasharray="3 3"
+            className="text-primary/40"
+          />
+        )}
+        {/* hit-area rects + circles */}
+        {points.map((p, i) => (
+          <g key={i}>
+            <rect
+              x={p.x - 28} y={0} width={56} height={80}
+              fill="transparent"
+              className="cursor-pointer"
+              onMouseEnter={() => setActive(i)}
+              onClick={() => setActive(active === i ? null : i)}
+            />
+            <circle
+              cx={p.x} cy={p.y} r={active === i ? 5 : 3}
+              className={`transition-all duration-150 ${
+                active === i
+                  ? "fill-primary stroke-background stroke-2"
+                  : "fill-primary/60 stroke-background stroke-1"
+              }`}
+            />
+          </g>
+        ))}
+      </svg>
+      {/* tooltip */}
+      {ap && (
+        <div
+          className="pointer-events-none absolute -top-8 flex -translate-x-1/2 items-center gap-1.5 rounded-lg border border-primary/30 bg-card/90 px-2.5 py-1 text-[11px] backdrop-blur-sm shadow-lg"
+          style={{ left: `${(ap.x / 400) * 100}%` }}
+        >
+          <span className="text-muted-foreground">{ap.label}</span>
+          <span className="font-medium text-primary">{ap.value}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TreasuryCard() {
+  const [activeTab, setActiveTab] = useState("overview")
+  const tab = TREASURY_TABS.find((t) => t.id === activeTab)!
+  return (
+    <motion.div
+      whileHover={{ y: -4, boxShadow: "0 32px 64px -12px rgba(139,92,246,0.18)" }}
+      transition={{ duration: 0.3 }}
+      className="relative overflow-hidden rounded-[1.4rem] border border-border/80 bg-card/80 shadow-2xl shadow-primary/10 backdrop-blur-xl"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border/70 px-5 py-4">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">PrivyPay console</p>
+          <p className="mt-1 text-sm font-medium">Treasury overview</p>
+        </div>
+        <div className="flex items-center gap-2 rounded-full bg-accent/10 px-2.5 py-1 text-[10px] text-accent">
+          <span className="size-1.5 rounded-full bg-accent animate-pulse" /> Private mode
+        </div>
+      </div>
+      {/* Tabs */}
+      <div className="flex border-b border-border/60">
+        {TREASURY_TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`flex-1 py-2.5 text-[11px] font-medium transition-all ${
+              activeTab === t.id
+                ? "border-b-2 border-primary text-primary bg-primary/5"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {/* Content */}
+      <motion.div
+        key={activeTab}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        className="grid gap-5 p-5 sm:p-6"
+      >
+        <div className="rounded-xl border border-border/70 bg-background/50 p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">{tab.sub}</p>
+              <p className="mt-2 text-3xl font-medium tracking-tight">
+                ${tab.balance.split(".")[0]}<span className="text-base text-muted-foreground">.{tab.balance.split(".")[1]}</span>
+              </p>
+            </div>
+            <div className="rounded-lg bg-primary/10 p-2 text-primary"><LockKeyhole className="size-4" /></div>
+          </div>
+          <InteractiveChart points={tab.points} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {tab.stats.map((s) => (
+            <motion.div key={s.label} whileHover={{ scale: 1.03 }} transition={{ duration: 0.2 }} className="rounded-xl border border-border/70 bg-background/40 p-4">
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="mt-3 text-lg font-medium">{s.value}</p>
+              <p className={`mt-1 text-xs ${s.noteColor}`}>{s.note}</p>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -351,11 +577,11 @@ export default function WaitlistHero() {
     <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(4,7,18,0.2)_58%,rgba(4,7,18,0.72)_100%)]" />
     <header className="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-10">
       <a href="#top" aria-label="PrivyPay home"><Logo /></a>
-      <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex"><a href="#why" className="water-text transition-colors hover:text-foreground">Why private</a><a href="#how-it-works" className="water-text transition-colors hover:text-foreground">How it works</a><a href="#guide" className="water-text transition-colors hover:text-foreground">User guide</a><a href="#product" className="water-text transition-colors hover:text-foreground">Product</a><a href="#trust" className="water-text transition-colors hover:text-foreground">Trust</a></nav>
+      <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex"><a href="#product" className="water-text transition-colors hover:text-foreground">Product</a><a href="#why" className="water-text transition-colors hover:text-foreground">Why private</a><a href="#how-it-works" className="water-text transition-colors hover:text-foreground">How it works</a><a href="#guide" className="water-text transition-colors hover:text-foreground">User guide</a><a href="#trust" className="water-text transition-colors hover:text-foreground">Trust</a></nav>
       <a href="/wallet" className="hidden items-center gap-2 rounded-full border border-border/80 bg-card/50 px-4 py-2 text-sm font-medium backdrop-blur-md transition-colors hover:border-primary/60 md:flex">Launch app <ArrowUpRight className="size-4" /></a>
       <button className="rounded-lg border border-border/80 p-2 md:hidden" onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu" aria-expanded={mobileOpen}>{mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}</button>
     </header>
-    {mobileOpen && <nav className="relative z-20 mx-6 flex flex-col gap-4 rounded-2xl border border-border/80 bg-card/90 p-5 text-sm backdrop-blur-xl md:hidden"><a href="#why" onClick={() => setMobileOpen(false)}>Why private</a><a href="#how-it-works" onClick={() => setMobileOpen(false)}>How it works</a><a href="#guide" onClick={() => setMobileOpen(false)}>User guide</a><a href="#product" onClick={() => setMobileOpen(false)}>Product</a><a href="#trust" onClick={() => setMobileOpen(false)}>Trust</a></nav>}
+    {mobileOpen && <nav className="relative z-20 mx-6 flex flex-col gap-4 rounded-2xl border border-border/80 bg-card/90 p-5 text-sm backdrop-blur-xl md:hidden"><a href="#product" onClick={() => setMobileOpen(false)}>Product</a><a href="#why" onClick={() => setMobileOpen(false)}>Why private</a><a href="#how-it-works" onClick={() => setMobileOpen(false)}>How it works</a><a href="#guide" onClick={() => setMobileOpen(false)}>User guide</a><a href="#trust" onClick={() => setMobileOpen(false)}>Trust</a></nav>}
 
     <main id="top" className="relative z-10">
       <section className="mx-auto grid max-w-7xl items-center gap-16 px-6 pb-24 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-10 lg:pb-36 lg:pt-24">
@@ -367,16 +593,7 @@ export default function WaitlistHero() {
         </motion.div>
         <motion.div id="product" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1], delay: 0.15 }} className="relative mx-auto w-full max-w-xl">
           <div className="absolute -inset-8 rounded-[2rem] bg-primary/10 blur-3xl" />
-          <motion.div whileHover={{ y: -4, boxShadow: "0 32px 64px -12px rgba(var(--primary-rgb,139,92,246),0.18)" }} transition={{ duration: 0.3 }} className="relative overflow-hidden rounded-[1.4rem] border border-border/80 bg-card/80 shadow-2xl shadow-primary/10 backdrop-blur-xl">
-            <div className="flex items-center justify-between border-b border-border/70 px-5 py-4"><div><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">PrivyPay console</p><p className="mt-1 text-sm font-medium">Treasury overview</p></div><div className="flex items-center gap-2 rounded-full bg-accent/10 px-2.5 py-1 text-[10px] text-accent"><span className="size-1.5 rounded-full bg-accent" /> Private mode</div></div>
-            <div className="grid gap-5 p-5 sm:p-7">
-              <div className="rounded-xl border border-border/70 bg-background/50 p-5"><div className="flex items-start justify-between"><div><p className="text-xs text-muted-foreground">Available balance</p><p className="mt-2 text-3xl font-medium tracking-tight">$248,920<span className="text-base text-muted-foreground">.40</span></p></div><div className="rounded-lg bg-primary/10 p-2 text-primary"><LockKeyhole className="size-4" /></div></div><div className="mt-6 h-20"><svg viewBox="0 0 400 80" className="h-full w-full" role="img" aria-label="Balance trend"><path d="M0 63 C35 55 44 65 70 53 S105 42 125 49 S150 40 174 44 S205 28 232 35 S260 32 280 20 S315 37 335 26 S365 19 400 8" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary"/><path d="M0 63 C35 55 44 65 70 53 S105 42 125 49 S150 40 174 44 S205 28 232 35 S260 32 280 20 S315 37 335 26 S365 19 400 8 V80 H0Z" className="fill-primary/10"/></svg></div></div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <motion.div whileHover={{ scale: 1.03 }} transition={{ duration: 0.2 }} className="rounded-xl border border-border/70 bg-background/40 p-4"><div className="flex items-center justify-between"><p className="text-xs text-muted-foreground">Next payroll</p><ChevronDown className="size-4 text-muted-foreground"/></div><p className="mt-4 text-lg font-medium">$86,240.00</p><p className="mt-1 text-xs text-accent">Encrypted until settlement</p></motion.div>
-                <motion.div whileHover={{ scale: 1.03 }} transition={{ duration: 0.2 }} className="rounded-xl border border-border/70 bg-background/40 p-4"><p className="text-xs text-muted-foreground">Counterparties</p><p className="mt-4 text-lg font-medium">24 private</p><p className="mt-1 text-xs text-muted-foreground">Zero exposed balances</p></motion.div>
-              </div>
-            </div>
-          </motion.div>
+          <TreasuryCard />
         </motion.div>
       </section>
       <section id="why" className="mx-auto max-w-7xl border-t border-border/60 px-6 py-20 lg:px-10 lg:py-28">
@@ -426,6 +643,6 @@ export default function WaitlistHero() {
         </Reveal>
       </section>
     </main>
-    <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-3 border-t border-border/60 px-6 py-7 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between lg:px-10"><span className="water-text font-mono tracking-[0.18em]">PRIVYPAY / PRIVATE MONEY INFRASTRUCTURE</span><div className="flex items-center gap-4"><a href="https://forms.gle/jtaNivDd1WBPC1TbA" target="_blank" rel="noopener noreferrer" className="water-text hover:text-foreground transition-colors">Leave feedback</a><span className="water-text">© 2026 PrivyPay. Confidential by design.</span></div></footer>
+    <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-3 border-t border-border/60 px-6 py-7 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between lg:px-10"><span className="water-text font-mono tracking-[0.18em]">PRIVYPAY / PRIVATE MONEY INFRASTRUCTURE</span><div className="flex flex-wrap items-center gap-4"><a href="https://forms.gle/jtaNivDd1WBPC1TbA" target="_blank" rel="noopener noreferrer" className="water-text hover:text-foreground transition-colors">Leave feedback</a><a href="mailto:privypay.support@gmail.com" className="water-text hover:text-foreground transition-colors">Contact us</a><span className="water-text">© 2026 PrivyPay. Confidential by design.</span></div></footer>
   </div>
 }

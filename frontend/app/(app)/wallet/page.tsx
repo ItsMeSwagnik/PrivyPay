@@ -163,7 +163,7 @@ export default function WalletPage() {
           )}
 
           {view?.registered && (
-            <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm overflow-hidden">
+            <div className="relative z-10 rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm">
               <div className="grid grid-cols-4 border-b border-border/60">
                 {(["deposit", "withdraw", "transfer", "merge"] as Tab[]).map((t) => (
                   <button key={t} onClick={() => setTab(t)}
@@ -419,54 +419,80 @@ function TransferTab({
 }) {
   const filteredRecipients = recipients.filter((r) => r !== selfAddress);
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
   const selected = transferTo;
-  const label = selected ? truncateAddr(selected, 10, 8) : filteredRecipients.length === 0 ? "No registered accounts" : "Select recipient…";
+  const label = selected
+    ? `${selected.slice(0, 8)}…${selected.slice(-6)}`
+    : filteredRecipients.length === 0 ? "No registered accounts" : "Select recipient…";
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">Send confidentially — amount stays private on-chain.</p>
       <div className="flex gap-2">
-        <div ref={ref} className="relative flex-1">
-          <button type="button" onClick={() => filteredRecipients.length > 0 && setOpen((o) => !o)}
-            className={`flex w-full items-center justify-between rounded-xl border px-4 py-2.5 text-sm transition-all ${open ? "border-primary/60 bg-white/5" : "border-border/60 bg-white/5 hover:border-border"} ${filteredRecipients.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+        <div ref={containerRef} className="relative flex-1">
+          <button
+            type="button"
+            onClick={() => filteredRecipients.length > 0 && setOpen((o) => !o)}
+            className={`flex w-full items-center justify-between rounded-xl border px-4 py-2.5 text-sm transition-all ${
+              open ? "border-primary/60 bg-white/5" : "border-border/60 bg-white/5 hover:border-border"
+            } ${filteredRecipients.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+          >
             <span className={`font-mono text-xs ${selected ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
-            <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+            <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
           {open && (
-            <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-border/60 bg-[oklch(0.16_0.035_264)] shadow-2xl shadow-black/60 backdrop-blur-xl">
-              <div className="max-h-52 overflow-y-auto">
+            <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[100] overflow-hidden rounded-xl border border-border/60 bg-card shadow-2xl shadow-black/60">
+              <div className="max-h-48 overflow-y-auto">
                 {filteredRecipients.map((r) => (
-                  <button key={r} type="button" onClick={() => { setTransferTo(r); setOpen(false); }}
-                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 ${r === selected ? "bg-primary/10" : ""}`}>
-                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary">{r.slice(0, 2)}</span>
-                    <div className="min-w-0">
-                      <p className="font-mono text-xs text-foreground">{r.slice(0, 16)}…{r.slice(-12)}</p>
+                  <button
+                    key={r}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setTransferTo(r);
+                      setOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 ${
+                      r === selected ? "bg-primary/10" : ""
+                    }`}
+                  >
+                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary">
+                      {r.slice(0, 2)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-xs text-foreground">{r.slice(0, 14)}…{r.slice(-10)}</p>
                       <p className="text-[10px] text-muted-foreground">Registered account</p>
                     </div>
-                    {r === selected && <span className="ml-auto text-xs text-primary">✓</span>}
+                    {r === selected && <span className="text-xs text-primary">✓</span>}
                   </button>
                 ))}
               </div>
             </div>
           )}
         </div>
-        <button onClick={onReload} title="Refresh recipient list"
-          className="shrink-0 rounded-xl border border-border/60 px-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all">
+        <button
+          onClick={onReload}
+          title="Refresh recipient list"
+          className="shrink-0 rounded-xl border border-border/60 px-3 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
+        >
           <RefreshCw className="size-4" />
         </button>
       </div>
-      {filteredRecipients.length === 0 && <p className="text-xs text-muted-foreground">No registered accounts found. Ask the recipient to register first, then click refresh.</p>}
+      {filteredRecipients.length === 0 && (
+        <p className="text-xs text-muted-foreground">No registered accounts found. Ask the recipient to register first, then click refresh.</p>
+      )}
       <div className="relative">
         <input className={inputCls} value={transferAmt} onChange={(e) => setTransferAmt(e.target.value)} placeholder="Amount" />
         <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-muted-foreground">XLM</span>

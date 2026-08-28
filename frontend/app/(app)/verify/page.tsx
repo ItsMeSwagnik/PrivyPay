@@ -117,6 +117,9 @@ export default function VerifyPage() {
       const artifacts = ARTIFACTS[bundle.circuitId];
       const verified = await verifyDisclosure({ client, indexer, bundle, request, keys, prover: proverFor(bundle.circuitId), pinnedVk: vkBytes(artifacts.vk.vkBase64) });
       setResult(verified);
+      // Consume the nonce — one-time use
+      localStorage.removeItem(REQUEST_KEY);
+      setRequest(null);
       toast.success("Verification successful", {
         description: `Disclosure verified: ${stroopsToXlm(verified.amount)} XLM`,
       });

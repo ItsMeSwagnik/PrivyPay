@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Menu, MessageSquare, Wallet, X } from "lucide-react";
+import { Mail, Menu, MessageSquare, Wallet, X } from "lucide-react";
 import { useWallet } from "@/lib/wallet-context";
 import { truncateAddr } from "@/lib/format";
 
@@ -74,6 +74,13 @@ export function AppNav() {
             Feedback
           </a>
 
+          {/* Contact */}
+          <a href="mailto:privypay.support@gmail.com"
+            className="hidden sm:flex items-center gap-1.5 rounded-full border border-border/60 bg-card/40 px-3 py-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors">
+            <Mail className="size-3" />
+            Contact
+          </a>
+
           {/* Wallet connect / status */}
           {connected ? (
             <div className="relative" ref={dropdownRef}>
@@ -125,6 +132,11 @@ export function AppNav() {
             className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
             <MessageSquare className="size-4" />
             Leave feedback
+          </a>
+          <a href="mailto:privypay.support@gmail.com"
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
+            <Mail className="size-4" />
+            Contact us
           </a>
         </div>
       )}
