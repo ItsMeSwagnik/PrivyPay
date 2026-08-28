@@ -6,7 +6,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://stellar-privypay.vercel.app)
 
-<img width="1900" height="1025" alt="image" src="https://github.com/user-attachments/assets/52515551-fc8d-4ca3-b2a5-7d9403a0020a" />
+<img width="1896" height="1023" alt="image" src="https://github.com/user-attachments/assets/3a70039e-35f2-4440-a158-83549ef38261" />
 
 **Confidential payroll and B2B invoicing powered by UltraHonk ZK proofs on Stellar Soroban.**
 
@@ -410,6 +410,9 @@ stellar contract invoke \
 | Payroll Batch | [`CDLI6RUL6EQJEHYJBGSOG5DIMKIMNTWNTUKRK4GVHVDCZFWYQCWVW3L5`](https://stellar.expert/explorer/testnet/contract/CDLI6RUL6EQJEHYJBGSOG5DIMKIMNTWNTUKRK4GVHVDCZFWYQCWVW3L5) |
 | Invoice Vault | [`CAYIM5I7JVP2NGA5Z3KEBYCCVTNKWQQ2TODCHDNESZTTP7QH3BSH5O5P`](https://stellar.expert/explorer/testnet/contract/CAYIM5I7JVP2NGA5Z3KEBYCCVTNKWQQ2TODCHDNESZTTP7QH3BSH5O5P) |
 
+<img width="1917" height="1020" alt="image" src="https://github.com/user-attachments/assets/a028b993-cbf8-4374-9ff7-ea9b92bd9479" />
+<img width="1917" height="1021" alt="image" src="https://github.com/user-attachments/assets/63574f6f-07c8-4ac4-8e85-47cabdbd50c7" />
+
 ---
 
 ## 🔗 Deployment Transactions
@@ -418,6 +421,9 @@ stellar contract invoke \
 |---|---|
 | Payroll Batch | [`b9142c8801943fcf49d20df85695e3e2c094e167b83fcfb756f0531bdf32d9e9`](https://stellar.expert/explorer/testnet/tx/b9142c8801943fcf49d20df85695e3e2c094e167b83fcfb756f0531bdf32d9e9) |
 | Invoice Vault | [`d3b3debbcb9be78043415c8b1b5d6f02b5fd1001647c91b764ff388ad31647c2`](https://stellar.expert/explorer/testnet/tx/d3b3debbcb9be78043415c8b1b5d6f02b5fd1001647c91b764ff388ad31647c2) |
+
+<img width="1917" height="1022" alt="image" src="https://github.com/user-attachments/assets/f89c310c-c914-4c80-93ba-674317151b5c" />
+<img width="1917" height="1022" alt="image" src="https://github.com/user-attachments/assets/a0edd5f3-c7d5-4cfb-9a48-19ccd0161b34" />
 
 Verify any transaction at: `https://stellar.expert/explorer/testnet/tx/<hash>`
 
@@ -433,7 +439,7 @@ Verify any transaction at: `https://stellar.expert/explorer/testnet/tx/<hash>`
 
 ## 🎬 Demo Video
 
-<!-- Add demo video link here -->
+https://drive.google.com/file/d/19OQ5fmuznDx1snVNXYooGDf9RX4Em3ot/view?usp=sharing
 
 ---
 
@@ -441,19 +447,36 @@ Verify any transaction at: `https://stellar.expert/explorer/testnet/tx/<hash>`
 
 ### Confidential Wallet
 
-<!-- Add wallet page screenshot here -->
+<img width="1897" height="1018" alt="image" src="https://github.com/user-attachments/assets/a33e157a-2fbe-40af-82a6-524c33fb20ea" />
 
 ### Payroll Dashboard
 
-<!-- Add payroll screenshot here -->
+<img width="1917" height="1023" alt="image" src="https://github.com/user-attachments/assets/eee6d7e3-c6d4-4e9d-8f66-b8fa04fc9db5" />
 
 ### B2B Invoicing
 
-<!-- Add invoices screenshot here -->
+<img width="1897" height="1017" alt="image" src="https://github.com/user-attachments/assets/bf982e73-e9e2-4f66-a3ce-78e8dd8a1a35" />
 
 ### Auditor Console
 
-<!-- Add auditor screenshot here -->
+<img width="1901" height="1022" alt="image" src="https://github.com/user-attachments/assets/2b7896a8-832d-4b26-8067-a3263c9686a8" />
+
+### Verify Page
+
+<img width="1897" height="1020" alt="image" src="https://github.com/user-attachments/assets/8f517150-44ec-4573-ab65-6f6d51d48634" />
+
+### Mobile Responsive UI
+
+<img width="358" height="832" alt="image" src="https://github.com/user-attachments/assets/585012a0-2bbb-44c1-9a29-143af933e920" /><img width="362" height="842" alt="image" src="https://github.com/user-attachments/assets/15cdd09e-67bd-4df9-abdc-1a1a9f6fc903" /><img width="361" height="826" alt="image" src="https://github.com/user-attachments/assets/42c405b6-0cff-4bde-a0b1-208b2a7397e1" /><img width="362" height="838" alt="image" src="https://github.com/user-attachments/assets/66bb6ba3-7855-452a-9160-9aecc2b2df33" />
+
+### Vercel Analytics
+
+<img width="1897" height="968" alt="image" src="https://github.com/user-attachments/assets/c99b833b-e7d3-4f93-ba31-c63623e3afe1" />
+<img width="1892" height="968" alt="image" src="https://github.com/user-attachments/assets/1f7555c3-f340-44a6-8a33-a109ce05c4f6" />
+
+### CI/CD Pipeline
+
+<img width="1917" height="1027" alt="image" src="https://github.com/user-attachments/assets/3b900b5c-4e77-4348-a7ba-3d166f274691" />
 
 ---
 
@@ -466,6 +489,12 @@ We collect feedback from real users to improve PrivyPay.
 📊 **[View feedback responses](https://docs.google.com/spreadsheets/d/1PvRRcRhl-dCawtsZBotP8CK-QEezmRRi1QUPAbpaIm4/edit?usp=sharing)**
 
 Feedback is also linked in the app navigation and landing page footer.
+
+## 🗣️ User Feedback Summary
+
+* **UI/UX Refinements:** While the interface is generally considered clean and easy to navigate, users suggest improvements such as adding skeleton loaders for better loading feedback, implementing pagination for transaction history, and providing visual confirmation when using "copy" features.
+  * **Functional Enhancements:** Technical suggestions include fixing the auto-update for transaction history after payroll batches, formatting large balance numbers for readability, and simplifying the Verify tab with a sample data button.
+  * **Feature Clarification:** There is a need for better documentation or UI cues regarding the platform's core privacy value proposition, the logic behind balance displays (spendable vs. actual), and the workflow for invoice payments.
 
 ---
 
