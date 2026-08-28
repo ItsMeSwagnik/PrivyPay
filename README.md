@@ -467,7 +467,7 @@ https://drive.google.com/file/d/19OQ5fmuznDx1snVNXYooGDf9RX4Em3ot/view?usp=shari
 
 ### Mobile Responsive UI
 
-<img width="358" height="832" alt="image" src="https://github.com/user-attachments/assets/585012a0-2bbb-44c1-9a29-143af933e920" /><img width="362" height="842" alt="image" src="https://github.com/user-attachments/assets/15cdd09e-67bd-4df9-abdc-1a1a9f6fc903" /><img width="361" height="826" alt="image" src="https://github.com/user-attachments/assets/42c405b6-0cff-4bde-a0b1-208b2a7397e1" /><img width="362" height="838" alt="image" src="https://github.com/user-attachments/assets/66bb6ba3-7855-452a-9160-9aecc2b2df33" />
+<img width="358" height="832" alt="image" src="https://github.com/user-attachments/assets/585012a0-2bbb-44c1-9a29-143af933e920" /> <img width="362" height="842" alt="image" src="https://github.com/user-attachments/assets/15cdd09e-67bd-4df9-abdc-1a1a9f6fc903" /> <img width="361" height="826" alt="image" src="https://github.com/user-attachments/assets/42c405b6-0cff-4bde-a0b1-208b2a7397e1" /> <img width="362" height="838" alt="image" src="https://github.com/user-attachments/assets/66bb6ba3-7855-452a-9160-9aecc2b2df33" />
 
 ### Vercel Analytics
 
@@ -477,6 +477,10 @@ https://drive.google.com/file/d/19OQ5fmuznDx1snVNXYooGDf9RX4Em3ot/view?usp=shari
 ### CI/CD Pipeline
 
 <img width="1917" height="1027" alt="image" src="https://github.com/user-attachments/assets/3b900b5c-4e77-4348-a7ba-3d166f274691" />
+
+### Contract Tests Passing
+
+<img width="932" height="616" alt="Screenshot 2026-08-28 002709" src="https://github.com/user-attachments/assets/52eb2811-e918-4bcd-aa05-6903f3a605ed" />
 
 ---
 
