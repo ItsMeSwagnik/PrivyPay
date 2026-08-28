@@ -407,7 +407,7 @@ function TransferRow({ ev, wallet, address, log }: {
 
 // ── Custom recipient dropdown ──────────────────────────────────────────────
 function TransferTab({
-  inputCls, btnCls, btnColor, recipients, transferTo, setTransferTo,
+  inputCls, btnCls, btnColor, selfAddress, recipients, transferTo, setTransferTo,
   transferAmt, setTransferAmt, busy, phase, phaseLabel, onReload, onSend,
 }: {
   inputCls: string; btnCls: string; btnColor: string;
