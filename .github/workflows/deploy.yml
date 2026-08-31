@@ -46,10 +46,12 @@ jobs:
           stellar --version
 
       - name: Import deployer key
-        run: stellar keys add deployer --secret-key
+        run: |
+          mkdir -p ~/.config/stellar/identity
+          printf '[account]\nsecret_key = "%s"\n' "$STELLAR_DEPLOYER_SECRET" \
+            > ~/.config/stellar/identity/deployer.toml
         env:
-          STELLAR_SECRET_KEY: ${{ secrets.STELLAR_DEPLOYER_SECRET }}
-          STELLAR_NETWORK: testnet
+          STELLAR_DEPLOYER_SECRET: ${{ secrets.STELLAR_DEPLOYER_SECRET }}
 
       - name: Deploy confidential-payroll-batch
         id: deploy-payroll
