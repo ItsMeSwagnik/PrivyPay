@@ -1,6 +1,7 @@
 # 🔐 PrivyPay — Private B2B Payroll & Invoicing on Stellar (Soroban)
 
 [![CI](https://github.com/ItsMeSwagnik/PrivyPay/actions/workflows/ci.yml/badge.svg)](https://github.com/ItsMeSwagnik/PrivyPay/actions/workflows/ci.yml)
+[![CD](https://github.com/ItsMeSwagnik/PrivyPay/actions/workflows/deploy.yml/badge.svg)](https://github.com/ItsMeSwagnik/PrivyPay/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Stellar Testnet](https://img.shields.io/badge/Stellar-Testnet-7B2FBE?logo=stellar)](https://stellar.expert/explorer/testnet)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
