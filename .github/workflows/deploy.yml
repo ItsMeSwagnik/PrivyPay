@@ -46,7 +46,12 @@ jobs:
           stellar --version
 
       - name: Import deployer key
-        run: stellar keys add deployer --secret-key "$STELLAR_DEPLOYER_SECRET"
+        run: |
+          mkdir -p ~/.config/stellar/identity
+          chmod 700 ~/.config/stellar ~/.config/stellar/identity
+          printf 'secret_key = "%s"\n' "$STELLAR_DEPLOYER_SECRET" \
+            > ~/.config/stellar/identity/deployer.toml
+          chmod 600 ~/.config/stellar/identity/deployer.toml
         env:
           STELLAR_DEPLOYER_SECRET: ${{ secrets.STELLAR_DEPLOYER_SECRET }}
 
