@@ -475,9 +475,13 @@ https://drive.google.com/file/d/19OQ5fmuznDx1snVNXYooGDf9RX4Em3ot/view?usp=shari
 <img width="1897" height="968" alt="image" src="https://github.com/user-attachments/assets/c99b833b-e7d3-4f93-ba31-c63623e3afe1" />
 <img width="1892" height="968" alt="image" src="https://github.com/user-attachments/assets/1f7555c3-f340-44a6-8a33-a109ce05c4f6" />
 
-### CI/CD Pipeline
+### CI Workflow
 
 <img width="1917" height="1027" alt="image" src="https://github.com/user-attachments/assets/3b900b5c-4e77-4348-a7ba-3d166f274691" />
+
+### CD Workflow
+
+<img width="1900" height="1025" alt="image" src="https://github.com/user-attachments/assets/4b7fd9db-cdd8-4aa8-98df-d61f114738b5" />
 
 ### Contract Tests Passing
 
