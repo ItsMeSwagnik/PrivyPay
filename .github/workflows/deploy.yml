@@ -113,16 +113,18 @@ jobs:
       - name: Vendor bb.js
         run: pnpm vendor:bb
 
-      - name: Build
-        run: pnpm build
-        env:
-          NEXT_PUBLIC_PAYROLL_BATCH_CONTRACT: ${{ needs.deploy-contracts.outputs.payroll_id || secrets.NEXT_PUBLIC_PAYROLL_BATCH_CONTRACT }}
-          NEXT_PUBLIC_INVOICE_VAULT_CONTRACT: ${{ needs.deploy-contracts.outputs.invoice_id || secrets.NEXT_PUBLIC_INVOICE_VAULT_CONTRACT }}
-          NEXT_PUBLIC_RPC_URL: ${{ secrets.NEXT_PUBLIC_RPC_URL }}
-          NEXT_PUBLIC_INDEXER_URL: ${{ secrets.NEXT_PUBLIC_INDEXER_URL }}
-
       - name: Install Vercel CLI
         run: pnpm add -g vercel@latest
+
+      - name: Build via Vercel
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          NEXT_PUBLIC_PAYROLL_BATCH_CONTRACT: ${{ needs.deploy-contracts.outputs.payroll_id != '' && needs.deploy-contracts.outputs.payroll_id || secrets.NEXT_PUBLIC_PAYROLL_BATCH_CONTRACT }}
+          NEXT_PUBLIC_INVOICE_VAULT_CONTRACT: ${{ needs.deploy-contracts.outputs.invoice_id != '' && needs.deploy-contracts.outputs.invoice_id || secrets.NEXT_PUBLIC_INVOICE_VAULT_CONTRACT }}
+          NEXT_PUBLIC_RPC_URL: ${{ secrets.NEXT_PUBLIC_RPC_URL || 'https://soroban-testnet.stellar.org' }}
+          NEXT_PUBLIC_INDEXER_URL: ${{ secrets.NEXT_PUBLIC_INDEXER_URL || '' }}
 
       - name: Deploy to Vercel (production)
         id: vercel-deploy
