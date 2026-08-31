@@ -1,0 +1,142 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. Build & deploy Soroban contracts to Stellar Testnet ────────────────
+  deploy-contracts:
+    name: Deploy contracts → Stellar Testnet
+    runs-on: ubuntu-latest
+    outputs:
+      payroll_id: ${{ steps.deploy-payroll.outputs.contract_id }}
+      invoice_id: ${{ steps.deploy-invoice.outputs.contract_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-deploy-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-deploy-
+
+      - name: Build contracts (release)
+        run: cargo build --release --target wasm32v1-none
+
+      - name: Install Stellar CLI
+        run: |
+          curl -sSL https://github.com/stellar/stellar-cli/releases/download/v25.2.0/stellar-cli-25.2.0-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xz -C /usr/local/bin stellar
+          stellar --version
+
+      - name: Import deployer key
+        run: |
+          echo "${{ secrets.STELLAR_DEPLOYER_SECRET }}" | stellar keys add deployer --secret-key --stdin
+        env:
+          STELLAR_NETWORK: testnet
+
+      - name: Deploy confidential-payroll-batch
+        id: deploy-payroll
+        run: |
+          ID=$(stellar contract deploy \
+            --wasm target/wasm32v1-none/release/confidential_payroll_batch.wasm \
+            --source-account deployer \
+            --network testnet \
+            --ignore-checks)
+          echo "contract_id=$ID" >> "$GITHUB_OUTPUT"
+          echo "Payroll Batch deployed: $ID"
+
+      - name: Deploy invoice-vault
+        id: deploy-invoice
+        run: |
+          ID=$(stellar contract deploy \
+            --wasm target/wasm32v1-none/release/invoice_vault.wasm \
+            --source-account deployer \
+            --network testnet \
+            --ignore-checks)
+          echo "contract_id=$ID" >> "$GITHUB_OUTPUT"
+          echo "Invoice Vault deployed: $ID"
+
+      - name: Summary
+        run: |
+          echo "### ✅ Contracts deployed to Stellar Testnet" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Contract | Address |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Payroll Batch | \`${{ steps.deploy-payroll.outputs.contract_id }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Invoice Vault | \`${{ steps.deploy-invoice.outputs.contract_id }}\` |" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── 2. Deploy frontend to Vercel ─────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy frontend → Vercel
+    runs-on: ubuntu-latest
+    needs: deploy-contracts
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Vendor bb.js
+        run: pnpm vendor:bb
+
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_PAYROLL_BATCH_CONTRACT: ${{ needs.deploy-contracts.outputs.payroll_id || secrets.NEXT_PUBLIC_PAYROLL_BATCH_CONTRACT }}
+          NEXT_PUBLIC_INVOICE_VAULT_CONTRACT: ${{ needs.deploy-contracts.outputs.invoice_id || secrets.NEXT_PUBLIC_INVOICE_VAULT_CONTRACT }}
+          NEXT_PUBLIC_RPC_URL: ${{ secrets.NEXT_PUBLIC_RPC_URL }}
+          NEXT_PUBLIC_INDEXER_URL: ${{ secrets.NEXT_PUBLIC_INDEXER_URL }}
+
+      - name: Install Vercel CLI
+        run: pnpm add -g vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (production)
+        id: vercel-deploy
+        run: |
+          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Deployed to: $URL"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Summary
+        run: |
+          echo "### 🚀 Frontend deployed to Vercel" >> "$GITHUB_STEP_SUMMARY"
+          echo "URL: ${{ steps.vercel-deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "rootDirectory": "frontend",
+  "buildCommand": "pnpm vendor:bb && pnpm build",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_PAYROLL_BATCH_CONTRACT": "@next_public_payroll_batch_contract",
+    "NEXT_PUBLIC_INVOICE_VAULT_CONTRACT": "@next_public_invoice_vault_contract"
+  }
+}
