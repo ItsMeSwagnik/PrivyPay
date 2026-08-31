@@ -46,9 +46,9 @@ jobs:
           stellar --version
 
       - name: Import deployer key
-        run: |
-          echo "${{ secrets.STELLAR_DEPLOYER_SECRET }}" | stellar keys add deployer --secret-key --stdin
+        run: stellar keys add deployer --secret-key
         env:
+          STELLAR_SECRET_KEY: ${{ secrets.STELLAR_DEPLOYER_SECRET }}
           STELLAR_NETWORK: testnet
 
       - name: Deploy confidential-payroll-batch
