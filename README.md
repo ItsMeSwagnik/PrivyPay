@@ -50,6 +50,10 @@ PrivyPay brings financial privacy to on-chain payroll and invoicing. Transaction
 
 ```
 PrivyPay/
+├── .github/
+│   └──workflows/
+│      ├── ci.yml
+│      └── deploy.yml
 ├── contracts/
 │   ├── confidential-payroll-batch/       # Soroban: atomic batch of confidential transfers
 │   │   ├── src/
@@ -91,7 +95,8 @@ PrivyPay/
 │       └── disclosure/                   # Selective disclosure circuit artifacts
 ├── Cargo.toml                            # Workspace root
 ├── .gitignore
-└── README.md
+├── README.md
+└── vercel.json
 ```
 
 ---
